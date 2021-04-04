@@ -1,35 +1,92 @@
-# Load data in matrix form
-load('binix.RData')
+path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 
-# Load anytime package to convert UNIX timestamps
-library(data.table)
+########## Starting point I (from raw matrix) ##########
+
+# Load data in matrix form
+load(paste0(path, 'binix.RData'))
+
+# Drop unwanted column (close_time)
+binix <- binix[, c(1:6, 8:9)]
 
 # Sort data
 binix <- binix[order(as.numeric(binix[, 1])), ]
+
+# Load data.table package
+library(data.table)
 
 # Transform into data.table
 bitable <- as.data.table(binix)
 rm(binix)
 
-# Convert close to numeric
-bitable <- bitable[, close := as.numeric(unlist(bitable[, 4]))]
+a <- nrow(bitable)
 
 # Convert open_time column to second-based UNIX stamp
 bitable <- bitable[, open_time := as.numeric(unlist(bitable[, 1]))/1000]
 
 # Compute date and close times in YYYY-MM-DD HH:MM:SS format
-bitable <- bitable[, time := anytime::anytime(as.numeric(unlist(bitable[, 1]) + 60), asUTC = TRUE)]
+bitable <- bitable[, date_time := anytime::anytime(as.numeric(unlist(bitable[, 1]) + 60), asUTC = TRUE)]
 
-# Separate date
-bitable <- bitable[, date := anytime::anydate(unlist(bitable[, 10]), asUTC = TRUE)]
+# Delete open_time column
+bitable <- bitable[, !('open_time')]
 
-# Format time column as H:M:S
-bitable <- bitable[, time := format(anytime::anytime(unlist(bitable[, 10]), asUTC = TRUE), format = '%H:%M:%S')]
+# Separate date and time
+bitable <- tidyr::separate(bitable, col = date_time, into = c('date', 'time'), sep = ' ')
 
-# Delete open_time and close_time columns
-bitable <- bitable[, !(c('open_time', 'close_time'))]
+# Separate day, month and year
+bitable <- tidyr::separate(bitable, col = date, into = c("year", "month", "day"), sep = "-")
 
-# TO DO: implicit observations
+# Separate hour, minute, minute, second
+bitable <- tidyr::separate(bitable, col = time, into = c("hour", "minute", "second"), sep = ":")
+
+# Drop seconds column
+bitable <- bitable[, !('second')]
+
+# Complete implicitly missing observations
+bitable <- tidyr::complete(bitable, year, month, day, hour, minute)
+
+# Recreate date and time columns
+setDT(bitable)
+
+bitable <- bitable[, date := lubridate::make_date(
+  year = year, month = month, day = day
+)]
+
+bitable <- bitable[, time := format(lubridate::make_datetime(
+  hour = as.numeric(hour), min = as.numeric(minute)
+), format = '%H:%M:%S')]
+
+# Delete unwanted columns
+bitable <- bitable[, !(c('year', 'month', 'day', 'hour', 'minute'))]
+
+# Delete remaining unwanted rows (April-21 forward)
+bitable <- bitable[2 : which(as.Date(bitable[, date]) > '2021-03-31')[1],]
+
+load(paste0(path, 'bitable_final.RData'))
+
+# TO DO LIST: convert prices to numeric
+
+cols <- colnames(bitable)
+phst <- seq(1, nrow(bitable), by = 100000)
+phen <- c(seq(100000, nrow(bitable), by = 100000), nrow(bitable))
+
+# Convert prices columns to numeric
+for (j in 1 : 1){
+  for (i in 1 : 1){
+    new_values <- as.numeric(bitable[phst[i] : phen[i], j])
+    
+        bitable <- bitable[, cols[j] := as.numeric(unlist(bitable[1 : phases[i], j]))]
+  }
+}
+
+a <- bitable[phases[1] : phases[3], 1]
+
+View(bitable[1:10, ])
+
+#bitable[, 1] <- lapply(lapply(bitable[1:500, 1], unlist), as.numeric)
+
+#bitable[, close := as.numeric(unlist(bitable[, 4]))]
+
+a[1:10, c('open', 'high')] <- lapply(lapply(bitable[1919501:1919510, 1:2], unlist), as.numeric)
 
 # Set keys for data table
 setkey(bitable, date, time)
@@ -58,6 +115,15 @@ nd <- lr[, .(ret = sum(ret, na.rm = TRUE), RV = sum(ret^2, na.rm = TRUE), RSP = 
 save(nd, file = 'bitable_BTC.RData')
 
 rm(bpv, tq, lr)
+
+########## Starting point II (from raw data table) ##########
+
+# Load the data
+load('C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\bitable_BTC.RData')
+
+# 
+
+
 
 # Plot histogram of the standardized returns
 hist(nd[, ret], main = 'Distribution of BTC Log Returns', xlab = NA, prob = TRUE, breaks = 30, xlim = c(-.01, .01),
