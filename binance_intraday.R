@@ -1,6 +1,6 @@
 path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 
-########## Starting point I (from raw matrix) ##########
+########## Starting point I (from raw imported matrix data) ##########
 
 # Load data in matrix form
 load(paste0(path, 'binix.RData'))
@@ -8,85 +8,80 @@ load(paste0(path, 'binix.RData'))
 # Drop unwanted column (close_time)
 binix <- binix[, c(1:6, 8:9)]
 
+# Convert to numeric matrix
+binix <- apply(binix, 2, as.numeric)
+
 # Sort data
-binix <- binix[order(as.numeric(binix[, 1])), ]
+binix <- binix[order(binix[, 1]), ]
 
-# Load data.table package
-library(data.table)
+# Convert open_time column to second-based UNIX timestamp
+binix[, 1] <- binix[, 1] / 1000
 
-# Transform into data.table
-bitable <- as.data.table(binix)
+# Convert open to close time
+binix[, 1] <- binix[, 1] + 60
+
+# Save numeric matrix
+save(binix, file = paste0(path, 'binix_num.RData'))
+
+########## Starting point I (from numeric adjusted matrix) ##########
+
+# Load data
+load(paste0(path, 'binix_num_BTC.RData'))
+
+# Convert to data.frame
+binframe <- as.data.frame(binix)
+
 rm(binix)
 
-a <- nrow(bitable)
-
-# Convert open_time column to second-based UNIX stamp
-bitable <- bitable[, open_time := as.numeric(unlist(bitable[, 1]))/1000]
-
-# Compute date and close times in YYYY-MM-DD HH:MM:SS format
-bitable <- bitable[, date_time := anytime::anytime(as.numeric(unlist(bitable[, 1]) + 60), asUTC = TRUE)]
-
-# Delete open_time column
-bitable <- bitable[, !('open_time')]
+# Compute date and close times in 'YYYY-MM-DD HH:MM:SS' format
+binframe[, 1] <- anytime::anytime(binframe[, 1], asUTC = TRUE)
 
 # Separate date and time
-bitable <- tidyr::separate(bitable, col = date_time, into = c('date', 'time'), sep = ' ')
+binframe <- tidyr::separate(binframe, col = open_time, into = c('date', 'time'), sep = ' ')
 
 # Separate day, month and year
-bitable <- tidyr::separate(bitable, col = date, into = c("year", "month", "day"), sep = "-")
+binframe <- tidyr::separate(binframe, col = date, into = c("year", "month", "day"), sep = "-")
 
-# Separate hour, minute, minute, second
-bitable <- tidyr::separate(bitable, col = time, into = c("hour", "minute", "second"), sep = ":")
-
-# Drop seconds column
-bitable <- bitable[, !('second')]
+# Separate hour and minute
+binframe <- tidyr::separate(binframe, col = time, into = c("hour", "minute"), sep = ":")
 
 # Complete implicitly missing observations
-bitable <- tidyr::complete(bitable, year, month, day, hour, minute)
+binframe <- tidyr::complete(binframe, year, month, day, hour, minute)
 
-# Recreate date and time columns
-setDT(bitable)
+# Eliminate first rows (before the data actually starts)
+binframe <- binframe[(which(binframe[, 1] == '2017-09-01')[2] : nrow(binframe)), ]
 
-bitable <- bitable[, date := lubridate::make_date(
-  year = year, month = month, day = day
-)]
+# Recreate date column
+binframe[, 1] <- lubridate::make_date(
+  year = unlist(binframe[, 'year']),
+  month = unlist(binframe[, 'month']),
+  day = unlist(binframe[, 'day'])
+)
 
-bitable <- bitable[, time := format(lubridate::make_datetime(
-  hour = as.numeric(hour), min = as.numeric(minute)
-), format = '%H:%M:%S')]
+# Recreate time column
+binframe[, 2] <- format(lubridate::make_datetime(
+  hour = as.numeric(unlist(binframe[, 'hour'])),
+  min = as.numeric(unlist(binframe[, 'minute'])),
+  sec = 00
+), format = '%H:%M:%S')
 
 # Delete unwanted columns
-bitable <- bitable[, !(c('year', 'month', 'day', 'hour', 'minute'))]
+binframe <- binframe[, c(1:2, 6:12)]
+
+# Rename columns 
+colnames(binframe) <- c('date', 'time', colnames(binframe)[3 : ncol(binframe)])
 
 # Delete remaining unwanted rows (April-21 forward)
 bitable <- bitable[2 : which(as.Date(bitable[, date]) > '2021-03-31')[1],]
 
+# View(binframe[1:10,])
+# Load data.table package
+library(data.table)
+
+# Transform into data.table
+rm(binix)
+
 load(paste0(path, 'bitable_final.RData'))
-
-# TO DO LIST: convert prices to numeric
-
-cols <- colnames(bitable)
-phst <- seq(1, nrow(bitable), by = 100000)
-phen <- c(seq(100000, nrow(bitable), by = 100000), nrow(bitable))
-
-# Convert prices columns to numeric
-for (j in 1 : 1){
-  for (i in 1 : 1){
-    new_values <- as.numeric(bitable[phst[i] : phen[i], j])
-    
-        bitable <- bitable[, cols[j] := as.numeric(unlist(bitable[1 : phases[i], j]))]
-  }
-}
-
-a <- bitable[phases[1] : phases[3], 1]
-
-View(bitable[1:10, ])
-
-#bitable[, 1] <- lapply(lapply(bitable[1:500, 1], unlist), as.numeric)
-
-#bitable[, close := as.numeric(unlist(bitable[, 4]))]
-
-a[1:10, c('open', 'high')] <- lapply(lapply(bitable[1919501:1919510, 1:2], unlist), as.numeric)
 
 # Set keys for data table
 setkey(bitable, date, time)
