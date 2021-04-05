@@ -1,6 +1,5 @@
-path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-
 ########## Starting point I (from raw imported matrix data) ##########
+path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 
 # Load data in matrix form
 load(paste0(path, 'binix.RData'))
@@ -21,9 +20,10 @@ binix[, 1] <- binix[, 1] / 1000
 binix[, 1] <- binix[, 1] + 60
 
 # Save numeric matrix
-save(binix, file = paste0(path, 'binix_num.RData'))
+#save(binix, file = paste0(path, 'binix_num.RData'))
 
-########## Starting point I (from numeric adjusted matrix) ##########
+########## Starting point II (from numeric adjusted matrix) ##########
+path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 
 # Load data
 load(paste0(path, 'binix_num_BTC.RData'))
@@ -48,9 +48,6 @@ binframe <- tidyr::separate(binframe, col = time, into = c("hour", "minute"), se
 # Complete implicitly missing observations
 binframe <- tidyr::complete(binframe, year, month, day, hour, minute)
 
-# Eliminate first rows (before the data actually starts)
-binframe <- binframe[(which(binframe[, 1] == '2017-09-01')[2] : nrow(binframe)), ]
-
 # Recreate date column
 binframe[, 1] <- lubridate::make_date(
   year = unlist(binframe[, 'year']),
@@ -68,15 +65,48 @@ binframe[, 2] <- format(lubridate::make_datetime(
 # Delete unwanted columns
 binframe <- binframe[, c(1:2, 6:12)]
 
+# Eliminate first rows (before the data actually starts) and last rows (after the
+# data actually ends)
+binframe <- binframe[(which(binframe[, 1] == '2017-09-01')[2] : nrow(binframe)), ]
+binframe <- binframe[(1 :  which(binframe[, 1] == '2021-04-01')[1]), ]
+
+# Convert back to data.frame 
+binframe <- as.data.frame(binframe)
+
 # Rename columns 
 colnames(binframe) <- c('date', 'time', colnames(binframe)[3 : ncol(binframe)])
 
-# Delete remaining unwanted rows (April-21 forward)
-bitable <- bitable[2 : which(as.Date(bitable[, date]) > '2021-03-31')[1],]
+# Create a sequence with all the days that should exist in the data set
+days <- seq(as.Date("2017-09-01"), as.Date("2021-03-31"), by = "days")
 
-# View(binframe[1:10,])
+# There should be 1308 days, 1440 observations per day = 1,883,520 observations
+nrow(binframe) / 1440
+
+# The complete function added more rows than there should be (with NA date values)
+# Creating a vector with the row numbers that should be deleted
+del <- vector()
+del <- which(is.na(binframe[, 1]))
+
+# Delete the rows
+binframe <- binframe[-del, ]
+
+rm(del, i, a, days)
+
+# Save the new data frame
+save(binframe, file = paste0(path, 'binframe_BTC.RData'))
+
+########## Starting point III (from data frame) ##########
+path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+
+# Load data
+load(paste0(path, 'binframe_BTC.RData'))
+
 # Load data.table package
 library(data.table)
+
+
+# I AM HERE
+
 
 # Transform into data.table
 rm(binix)
@@ -111,7 +141,7 @@ save(nd, file = 'bitable_BTC.RData')
 
 rm(bpv, tq, lr)
 
-########## Starting point II (from raw data table) ##########
+########## Starting point IV (from raw data table) ##########
 
 # Load the data
 load('C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\bitable_BTC.RData')
