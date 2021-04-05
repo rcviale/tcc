@@ -1,18 +1,10 @@
 library(httr)
 library(jsonlite)
-library(data.table)
 
 rm(list = ls())
 
 base <- "https://api.binance.com/"
-ticker <- 'BTCUSDT'
-
-# Exchange info
-get_info <- GET(url = base, path = '/api/v3/exchangeInfo')
-info <- fromJSON(content(get_info, "text"), flatten = TRUE)
-info$rateLimits
-
-rm(get_info, info)
+ticker <- 'XRPUSDT'
 
 # Days x time ranges
 days <- seq(as.Date("2017-09-01"), as.Date("2021-03-31"), by = "days")
@@ -54,7 +46,7 @@ binraw <- GET(url = base, path = '/api/v3/klines',
               ))
 
 # Convert from JSON to matrix
-binix2 <- fromJSON(content(binraw, "text"), flatten = TRUE)
+binix <- fromJSON(content(binraw, "text"), flatten = TRUE)
 
 # Second day and time range + merge 1st and 2nd
 binraw2 <- GET(url = base, path = '/api/v3/klines', 
@@ -74,6 +66,9 @@ binix <- rbind(binix, binix2)
 
 rm(binraw, binix2, binraw2)
 
+# Convert from character matrix to numeric
+binix <- apply(binix, 2, as.numeric)
+
 # Download the remaining data, merging it with the first day
 for (i in 2 : length(days)){
   for (j in 1 : f){
@@ -86,10 +81,13 @@ for (i in 2 : length(days)){
                     limit = as.integer(1000)
                   ))
     nbinix <- fromJSON(content(binraw, "text"), flatten = TRUE)
+    nbinix <- apply(nbinix, 2, as.numeric)
     binix <- rbind(binix, nbinix)
     Sys.sleep(0.1)
   }
 }
+
+rm(nbinix, binraw)
 
 # check for duplicates, number of obs and number of days
 anyDuplicated(binix)
@@ -97,108 +95,21 @@ nrow(binix)
 nrow(binix) / 1440
 
 # Get rid of unwanted columns
-nbinix <- binix[, 1:9]
+binix <- binix[, c(1:6, 8:9)]
+
+# Input column names
+colnames(binix) <- c('open_time', 'open', 'high', 'low', 'close', 'volume',
+                     'quote_asset_vol', 'no_trades')
+
+# Save matrix
+save(binix, file = 'binix_XRP.RData')
 
 rm(binix)
 
-# Input column names
-colnames(nbinix) <- c('open_time', 'open', 'high', 'low', 'close', 'volume',
-                       'close_time', 'quote_asset_vol', 'no_trades')
-
-# Load frame with all the data
-load("binix.RData")
-
-binix <- rbind(binix, nbinix)
-
-# Save matrix
-save(binix, file = 'binix.RData')
-
-rm(binix, nbinix)
 
 
 
-
-
-
-# Convert to data.frame
-binframe_new <- as.data.frame(binix)
-
-rm(binix, binraw)
-
-
-# Merge new frame with rest of data
-binframe <- rbind(binframe, binframe_new)
-
-# Save new frame
-save(binframe, file = "binframe.RData")
-
-rm(binframe_new, binframe)
-
-
-
-nrow(binframe)
-nrow(binframe) / 1440
-anyDuplicated(binframe)
-
-# Eliminate duplicates
-binframe <- dplyr::distinct(binframe)
-
-
-##### TESTS #####
-ti <- 6
-
-# First day and time range
-testraw <- GET(url = base, path = '/api/v3/klines', 
-              query = list(
-                symbol = ticker,
-                interval = '1m',
-                startTime = start[ti, 1],
-                endTime = end[ti, 1],
-                limit = as.integer(1000)
-              ))
-
-# Convert to data.frame
-testframe <- fromJSON(content(testraw, "text"), flatten = TRUE)
-
-# Second day and time range + merge 1st and 2nd
-testraw <- GET(url = base, path = '/api/v3/klines', 
-               query = list(
-                 symbol = ticker,
-                 interval = '1m',
-                 startTime = start[ti, 2],
-                 endTime = end[ti, 2],
-                 limit = as.integer(1000)
-               ))
-testframe <- rbind(testframe, fromJSON(content(testraw, "text"), flatten = TRUE))
-
-anyDuplicated(testframe)
-nrow(testframe) == 1440
-nrow(testframe) / 1440
-
-for (i in 39 : 43){
-  for (j in 1 : f){
-    binraw <- GET(url = base, path = '/api/v3/klines', 
-                  query = list(
-                    symbol = ticker,
-                    interval = '1m',
-                    startTime = start[i, j],
-                    endTime = end[i, j],
-                    limit = as.integer(1000)
-                  ))
-    testframe <- rbind(testframe, fromJSON(content(binraw, "text"), flatten = TRUE))
-  }
-}
-
-anyDuplicated(testframe)
-nrow(testframe)
-nrow(testframe) / 1440
-
-d <- diff(as.numeric(testframe[, 1]))
-
-which(d > 60000)
-
-# Known NA's: 06/03 (Thu, 03:40), 11/02 (Sat, 01:20)
-
-rm(testframe, testraw, d)
-
-
+# Exchange info
+get_info <- GET(url = base, path = '/api/v3/exchangeInfo')
+info <- fromJSON(content(get_info, "text"), flatten = TRUE)
+info$rateLimits
