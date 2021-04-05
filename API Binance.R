@@ -108,6 +108,10 @@ save(binix, file = paste0(path, 'binix_', coin, '.RData'))
 
 rm(list = ls())
 
+save(binix, file = 'binix_XRP.RData')
+
+rm(binix)
+
 
 
 
