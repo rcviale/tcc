@@ -1,14 +1,9 @@
 ########## Starting point I (from raw imported matrix data) ##########
 path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+coin = 'XRP'
 
 # Load data in matrix form
-load(paste0(path, 'binix.RData'))
-
-# Drop unwanted column (close_time)
-binix <- binix[, c(1:6, 8:9)]
-
-# Convert to numeric matrix
-binix <- apply(binix, 2, as.numeric)
+load(paste0(path, 'binix_', coin, '.RData'))
 
 # Sort data
 binix <- binix[order(binix[, 1]), ]
@@ -18,15 +13,6 @@ binix[, 1] <- binix[, 1] / 1000
 
 # Convert open to close time
 binix[, 1] <- binix[, 1] + 60
-
-# Save numeric matrix
-#save(binix, file = paste0(path, 'binix_num.RData'))
-
-########## Starting point II (from numeric adjusted matrix) ##########
-path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-
-# Load data
-load(paste0(path, 'binix_num_BTC.RData'))
 
 # Convert to data.frame
 binframe <- as.data.frame(binix)
@@ -67,7 +53,7 @@ binframe <- binframe[, c(1:2, 6:12)]
 
 # Eliminate first rows (before the data actually starts) and last rows (after the
 # data actually ends)
-binframe <- binframe[(which(binframe[, 1] == '2017-09-01')[2] : nrow(binframe)), ]
+binframe <- binframe[(which(binframe[, 1] == '2018-06-01')[2] : nrow(binframe)), ]
 binframe <- binframe[(1 :  which(binframe[, 1] == '2021-04-01')[1]), ]
 
 # Convert back to data.frame 
@@ -77,9 +63,9 @@ binframe <- as.data.frame(binframe)
 colnames(binframe) <- c('date', 'time', colnames(binframe)[3 : ncol(binframe)])
 
 # Create a sequence with all the days that should exist in the data set
-days <- seq(as.Date("2017-09-01"), as.Date("2021-03-31"), by = "days")
+days <- seq(as.Date("2018-06-01"), as.Date("2021-03-31"), by = "days")
 
-# There should be 1308 days, 1440 observations per day = 1,883,520 observations
+# Actual number of days in the data set
 nrow(binframe) / 1440
 
 # The complete function added more rows than there should be (with NA date values)
@@ -90,12 +76,12 @@ del <- which(is.na(binframe[, 1]))
 # Delete the rows
 binframe <- binframe[-del, ]
 
-rm(del, i, a, days)
+rm(del, days)
 
 # Save the new data frame
-save(binframe, file = paste0(path, 'binframe_BTC.RData'))
+save(binframe, file = paste0(path, 'binframe_', coin, '.RData'))
 
-########## Starting point III (from data frame) ##########
+########## Starting point II (from data frame) ##########
 path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 
 # Load data
@@ -106,6 +92,7 @@ library(data.table)
 
 
 # I AM HERE
+# INTEGRATE DATE RANGE FROM API TO INTRADAY
 
 
 # Transform into data.table
