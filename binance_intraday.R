@@ -88,11 +88,28 @@ coin = 'BTC'
 # Load data
 load(paste0(path, 'binframe_', coin, '.RData'))
 
+# Construction of series with other frequencies
+# 5min
+f <- 5
+binframe5 <- binframe[seq(f, nrow(binframe), f),]
+
+# 15min
+f <- 15
+binframe15 <- binframe[seq(f, nrow(binframe), f),]
+
+# 30min
+f <- 30
+binframe30 <- binframe[seq(f, nrow(binframe), f),]
+
+# 60min
+f <- 60
+binframe60 <- binframe[seq(f, nrow(binframe), f),]
+
 # Load data.table package
 library(data.table)
 
 # Transform into data.table
-bintable <- setDT(binframe)
+bintable <- setDT(binframe5)
 
 rm(binframe)
 
@@ -115,14 +132,15 @@ for (i in 1 : length(x)){
 }
 
 # Labels for each hour in the barplot
-# xlabs <- format(seq(anytime::anytime(1), anytime::anytime(86400), 3600), format = '%H:%M')
-xlabs <- 1:24
+xlabs <- seq(4, 24, 4)
+xpos <- seq(13, 85, 14.4)
 
 # Barplot
 barplot(height = y, width = 3, ylim = c(0.99 * min(y), 1.01 * max(y)), xpd = FALSE,
-        main = 'Log of Mean $ Volume by Hour of Day', ylab = 'Volume', names.arg = xlabs,
+        main = 'Log of Mean $ Volume by Hour of Day', ylab = 'Volume',
         cex.names = 1, xlab = 'Hour')
 box()
+axis(1, at = xpos, labels = xlabs)
 
 rm(xlabs, x, y, fv_time, fv_date, i)
 
@@ -164,7 +182,7 @@ coin = 'BTC'
 load(paste0(path, 'bintable_', coin, '.RData'))
 
 # Plot histogram of the standardized returns
-hist(ntable[, ret], main = 'Distribution of BTC Log Returns', xlab = NA, prob = TRUE, 
+hist(ntable[, ret], main = 'Distribution of BTC Standardized Log Returns', xlab = NA, prob = TRUE, 
      breaks = 30, font.main = 1, cex.main = 1, xlim = c(-0.2, 0.2))
 curve(dnorm(x, mean = mean(ntable[, ret]), sd = sd(ntable[, ret])), col = 'darkblue', 
       lwd = 2, add = TRUE, yaxt = 'n')
@@ -217,7 +235,6 @@ Box.test(residuals(HAR), type = 'Ljung-Box', lag = 5)
 
 # Breusch-Pagan test (H0: homoskedasticity)
 lmtest::bptest(HAR)
-
 
 ########## Neural Network ##########
 
