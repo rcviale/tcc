@@ -83,28 +83,49 @@ save(binframe, file = paste0(path, 'binframe_', coin, '.RData'))
 
 ########## Starting point II (from data frame) ##########
 path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+coin = 'BTC'
 
 # Load data
-load(paste0(path, 'binframe_BTC.RData'))
+load(paste0(path, 'binframe_', coin, '.RData'))
 
 # Load data.table package
 library(data.table)
 
-
-# I AM HERE
-# INTEGRATE DATE RANGE FROM API TO INTRADAY
-
-
 # Transform into data.table
-rm(binix)
+bintable <- setDT(binframe)
 
-load(paste0(path, 'bitable_final.RData'))
+rm(binframe)
 
 # Set keys for data table
-setkey(bitable, date, time)
+setkey(bintable, date, time)
+
+# Logs of total financial volume by time of day and date
+fv_time <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
+fv_date <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(date)]
+
+# Plots for financial volume by time of day and date
+plot.ts(fv_time[, 2], main = 'Log of $ Volume by Time of Day', ylab = '$ volume')
+plot.ts(fv_date[, 2], main = 'Log of $ Volume by Date', ylab = '$ volume')
+
+# 
+x <- seq(1, 1440, 60)
+y <- vector()
+for (i in 1 : length(x)){
+  y[i] <- sum(fv_time[x[i] : (x[i] + 59), 2])
+}
+
+plot(x, y, type = 's')
+barplot((y), log = 'y')
+
+View(fvol[1:10,])
+
+
+
+
+
 
 # New data table with log difs and indicator functions for positive/negative
-lr <- bitable[, .(ret = diff(log(close))), by = list(date)]
+lr <- bintable[, .(ret = diff(log(close))), by = list(date)]
 lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
 lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
 
