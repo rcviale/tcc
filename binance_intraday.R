@@ -107,15 +107,23 @@ fv_date <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))),
 plot.ts(fv_time[, 2], main = 'Log of $ Volume by Time of Day', ylab = '$ volume')
 plot.ts(fv_date[, 2], main = 'Log of $ Volume by Date', ylab = '$ volume')
 
-# 
+# Aggregation of time of day by hour
 x <- seq(1, 1440, 60)
 y <- vector()
 for (i in 1 : length(x)){
   y[i] <- sum(fv_time[x[i] : (x[i] + 59), 2])
 }
 
-plot(x, y, type = 's')
-barplot((y), log = 'y')
+# Labels for each hour in the barplot
+# xlabs <- format(seq(anytime::anytime(1), anytime::anytime(86400), 3600), format = '%H:%M')
+xlabs <- 1:24
+
+# Barplot
+barplot(height = y, width = 3, ylim = c(0.99 * min(y), 1.01 * max(y)), xpd = FALSE,
+        main = 'Log of Mean $ Volume by Hour of Day', ylab = 'Volume', names.arg = xlabs,
+        cex.names = 1, xlab = 'Hour')
+box()
+
 
 View(fvol[1:10,])
 
