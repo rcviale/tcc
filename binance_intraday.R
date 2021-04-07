@@ -109,13 +109,15 @@ binframe60 <- binframe[seq(f, nrow(binframe), f),]
 library(data.table)
 
 # Transform into data.table
-bintable <- setDT(binframe5)
+bintable <- setDT(binframe)
 
 rm(binframe)
 
 # Set keys for data table
 setkey(bintable, date, time)
 
+
+### PLOTS ###
 # Logs of total financial volume by time of day and date
 fv_time <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
 fv_date <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(date)]
@@ -144,12 +146,13 @@ axis(1, at = xpos, labels = xlabs)
 
 rm(xlabs, x, y, fv_time, fv_date, i)
 
+
+### DATA PREP FOR MODELS ###
+## 1 MIN RETURNS ##
 # New data table with log difs and indicator functions for positive/negative
 lr <- bintable[, .(ret = diff(log(close))), by = list(date)]
 lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
 lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
-
-rm(bintable)
 
 # Computation of BPV
 bpv <- tapply(lr[, ret], lr[, date], function(x){
@@ -173,6 +176,43 @@ ntable <- lr[, .(ret = sum(ret, na.rm = TRUE), RV = sum(ret^2, na.rm = TRUE),
 rm(bpv, tq, lr)
 
 save(ntable, file = paste0(path, 'bintable_', coin, '.RData'))
+
+## 5 MIN RETURNS ##
+# New data table with log difs and indicator functions for positive/negative
+f <- 5
+lr <- bintable[, .(ret = diff(log(close), lag = (f - 1))), by = list(date)]
+lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
+lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
+
+# Computation of BPV
+bpv <- tapply(lr[, ret], lr[, date], function(x){
+  (length(x)/(length(x) - 2)) / (2 / pi) * sum(abs(x[3:length(x)]) * 
+                                                 abs(x[1:(length(x) - 2)]), na.rm = TRUE)
+})
+
+# Computation of TQ statistic (fourth moment)
+tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
+  length(x)^2/(length(x) - 4) / (0.8313)^3 * sum(abs(x[1 : (length(x) - 4)])^(4/3) * 
+                                                   abs(x[2 : (length(x) - 3)]^(4/3)) * 
+                                                   abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
+})
+
+# New data table with all the computed data
+ntable <- lr[, .(ret = mean(ret, na.rm = TRUE), RV = mean(sum(ret^2, na.rm = TRUE)), 
+                 RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
+                 RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
+             by = list(date)][, BPV := bpv][, TQ := tq]
+
+rm(bpv, tq, lr)
+
+save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
+
+
+
+
+
+
+
 
 ########## Starting point III (from data table) ##########
 path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
@@ -214,7 +254,7 @@ lines(sqrt(ntable$RV[23 : nrow(ntable)]), col = 'red', lty = 2)
 
 # Histogram of the residuals
 hist(residuals(HAR), breaks = 50, font.main = 1, main = 'Histogram of the Residuals of the HAR Model',
-     prob = TRUE, xlab = NA, xlim = c(-0.1, 0.1))
+     prob = TRUE, xlab = NA)
 curve(dnorm(x, mean = mean(residuals(HAR)), sd = sd(residuals(HAR))), col = "darkblue", add = TRUE, lwd = 2)
 
 # Normal Q-Q Plot for the residuals
