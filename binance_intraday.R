@@ -88,23 +88,6 @@ coin = 'BTC'
 # Load data
 load(paste0(path, 'binframe_', coin, '.RData'))
 
-# Construction of series with other frequencies
-# 5min
-f <- 5
-binframe5 <- binframe[seq(f, nrow(binframe), f),]
-
-# 15min
-f <- 15
-binframe15 <- binframe[seq(f, nrow(binframe), f),]
-
-# 30min
-f <- 30
-binframe30 <- binframe[seq(f, nrow(binframe), f),]
-
-# 60min
-f <- 60
-binframe60 <- binframe[seq(f, nrow(binframe), f),]
-
 # Load data.table package
 library(data.table)
 
@@ -117,7 +100,7 @@ rm(binframe)
 setkey(bintable, date, time)
 
 
-### PLOTS ###
+########## PLOTS ##########
 # Logs of total financial volume by time of day and date
 fv_time <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
 fv_date <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(date)]
@@ -147,10 +130,12 @@ axis(1, at = xpos, labels = xlabs)
 rm(xlabs, x, y, fv_time, fv_date, i)
 
 
-### DATA PREP FOR MODELS ###
+########## DATA PREP FOR TABLES ##########
 ## 1 MIN RETURNS ##
+f <- 1
+
 # New data table with log difs and indicator functions for positive/negative
-lr <- bintable[, .(ret = diff(log(close))), by = list(date)]
+lr <- bintable[, .(ret = diff(log(close), lag = f)), by = list(date)]
 lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
 lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
 
@@ -168,47 +153,51 @@ tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
 })
 
 # New data table with all the computed data
-ntable <- lr[, .(ret = sum(ret, na.rm = TRUE), RV = sum(ret^2, na.rm = TRUE), 
+ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE) / f, 
                  RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
                  RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
              by = list(date)][, BPV := bpv][, TQ := tq]
 
 rm(bpv, tq, lr)
 
-save(ntable, file = paste0(path, 'bintable_', coin, '.RData'))
-
-## 5 MIN RETURNS ##
-# New data table with log difs and indicator functions for positive/negative
-f <- 5
-lr <- bintable[, .(ret = diff(log(close), lag = (f - 1))), by = list(date)]
-lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
-lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
-
-# Computation of BPV
-bpv <- tapply(lr[, ret], lr[, date], function(x){
-  (length(x)/(length(x) - 2)) / (2 / pi) * sum(abs(x[3:length(x)]) * 
-                                                 abs(x[1:(length(x) - 2)]), na.rm = TRUE)
-})
-
-# Computation of TQ statistic (fourth moment)
-tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
-  length(x)^2/(length(x) - 4) / (0.8313)^3 * sum(abs(x[1 : (length(x) - 4)])^(4/3) * 
-                                                   abs(x[2 : (length(x) - 3)]^(4/3)) * 
-                                                   abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
-})
-
-# New data table with all the computed data
-ntable <- lr[, .(ret = mean(ret, na.rm = TRUE), RV = mean(sum(ret^2, na.rm = TRUE)), 
-                 RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
-                 RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
-             by = list(date)][, BPV := bpv][, TQ := tq]
-
-rm(bpv, tq, lr)
-
+# Save data table
 save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
 
+rm(ntable)
 
+## 5 MIN RETURNS ##
+f <- 5
 
+# New data table with log difs and indicator functions for positive/negative
+lr <- bintable[, .(ret = diff(log(close), lag = f)), by = list(date)]
+lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
+lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
+
+# Computation of BPV
+bpv <- tapply(lr[, ret], lr[, date], function(x){
+  (length(x)/(length(x) - 2)) / (2 / pi) * sum(abs(x[3:length(x)]) * 
+                                                 abs(x[1:(length(x) - 2)]), na.rm = TRUE)
+})
+
+# Computation of TQ statistic (fourth moment)
+tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
+  length(x)^2/(length(x) - 4) / (0.8313)^3 * sum(abs(x[1 : (length(x) - 4)])^(4/3) * 
+                                                   abs(x[2 : (length(x) - 3)]^(4/3)) * 
+                                                   abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
+})
+
+# New data table with all the computed data
+ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE) / f, 
+                 RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
+                 RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
+             by = list(date)][, BPV := bpv][, TQ := tq]
+
+rm(bpv, tq, lr)
+
+# Save data table
+save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
+
+#
 
 
 
@@ -275,6 +264,52 @@ Box.test(residuals(HAR), type = 'Ljung-Box', lag = 5)
 
 # Breusch-Pagan test (H0: homoskedasticity)
 lmtest::bptest(HAR)
+
+########## GARCH(1, 1) Comparison ##########
+# GARCH(1, 1) model for the data
+garchs <- rugarch::ugarchspec(mean.model = list(armaOrder = c(0, 0)), 
+                              variance.model = list(garchOrder = c(1, 1)))
+garch <- rugarch::ugarchfit(garchs, ntable[, ret])
+
+rm(garchs)
+
+# Comparison between basic HAR, Assymetric HAR, Jumps HAR and GARCH(1, 1)
+plot.ts(sqrt(ntable$RV[23 : L]), ylab = NA, main = 'Gold Estimated Volatility Comparison', font.main = 1)
+lines(garch@fit$sigma[23 : L], col = 'blue')
+lines(HAR$fitted.values, col = 'red')
+legend('top', ncol = 3, col = c('black', 'blue', 'red'), lwd = 2, bty = 'n',
+       legend = c('RV', 'GARCH(1, 1)', 'HAR'))
+
+# Mean square error and mean absolute error
+mu <- sqrt(ntable$RV[23 : L])
+
+HAR_fv <- HAR$fitted.values
+GARCH_fv <- garch@fit$sigma[23 : L]
+
+mse_HAR <- mean((mu - HAR_fv)^2)
+mse_GARCH <- mean((mu - GARCH_fv)^2)
+
+mae_HAR <- mean(abs(mu - HAR_fv))
+mae_GARCH <- mean(abs(mu - GARCH_fv))
+
+eix <- matrix(ncol = 2, nrow = 2)
+
+colnames(eix) <- c('MSE', 'MAE')
+rownames(eix) <- c('HAR', 'GARCH(1, 1)')
+
+eix[1, 1] <- mse_HAR * 1000000
+eix[1, 2] <- mae_HAR * 1000000
+eix[2, 1] <- mse_GARCH * 1000000
+eix[2, 2] <- mae_GARCH * 1000000
+
+View(eix)
+
+
+
+
+
+
+
 
 ########## Neural Network ##########
 
