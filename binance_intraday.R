@@ -1,6 +1,6 @@
 ########## Starting point I (from raw imported matrix data) ##########
-path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-coin = 'XRP'
+path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+coin <- 'XRP'
 
 # Load data in matrix form
 load(paste0(path, 'binix_', coin, '.RData'))
@@ -82,8 +82,8 @@ rm(del, days)
 save(binframe, file = paste0(path, 'binframe_', coin, '.RData'))
 
 ########## Starting point II (from data frame) ##########
-path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-coin = 'BTC'
+path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+coin <- 'BTC'
 
 # Load data
 load(paste0(path, 'binframe_', coin, '.RData'))
@@ -163,8 +163,6 @@ rm(bpv, tq, lr)
 # Save data table
 save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
 
-rm(ntable)
-
 ## 5 MIN RETURNS ##
 f <- 5
 
@@ -197,18 +195,110 @@ rm(bpv, tq, lr)
 # Save data table
 save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
 
-#
+## 15 MIN RETURNS ##
+f <- 15
 
+# New data table with log difs and indicator functions for positive/negative
+lr <- bintable[, .(ret = diff(log(close), lag = f)), by = list(date)]
+lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
+lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
 
+# Computation of BPV
+bpv <- tapply(lr[, ret], lr[, date], function(x){
+  (length(x)/(length(x) - 2)) / (2 / pi) * sum(abs(x[3:length(x)]) * 
+                                                 abs(x[1:(length(x) - 2)]), na.rm = TRUE)
+})
 
+# Computation of TQ statistic (fourth moment)
+tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
+  length(x)^2/(length(x) - 4) / (0.8313)^3 * sum(abs(x[1 : (length(x) - 4)])^(4/3) * 
+                                                   abs(x[2 : (length(x) - 3)]^(4/3)) * 
+                                                   abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
+})
+
+# New data table with all the computed data
+ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE) / f, 
+                 RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
+                 RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
+             by = list(date)][, BPV := bpv][, TQ := tq]
+
+rm(bpv, tq, lr)
+
+# Save data table
+save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
+
+## 30 MIN RETURNS ##
+f <- 30
+
+# New data table with log difs and indicator functions for positive/negative
+lr <- bintable[, .(ret = diff(log(close), lag = f)), by = list(date)]
+lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
+lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
+
+# Computation of BPV
+bpv <- tapply(lr[, ret], lr[, date], function(x){
+  (length(x)/(length(x) - 2)) / (2 / pi) * sum(abs(x[3:length(x)]) * 
+                                                 abs(x[1:(length(x) - 2)]), na.rm = TRUE)
+})
+
+# Computation of TQ statistic (fourth moment)
+tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
+  length(x)^2/(length(x) - 4) / (0.8313)^3 * sum(abs(x[1 : (length(x) - 4)])^(4/3) * 
+                                                   abs(x[2 : (length(x) - 3)]^(4/3)) * 
+                                                   abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
+})
+
+# New data table with all the computed data
+ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE) / f, 
+                 RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
+                 RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
+             by = list(date)][, BPV := bpv][, TQ := tq]
+
+rm(bpv, tq, lr)
+
+# Save data table
+save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
+
+## 60 MIN RETURNS ##
+f <- 60
+
+# New data table with log difs and indicator functions for positive/negative
+lr <- bintable[, .(ret = diff(log(close), lag = f)), by = list(date)]
+lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
+lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
+
+# Computation of BPV
+bpv <- tapply(lr[, ret], lr[, date], function(x){
+  (length(x)/(length(x) - 2)) / (2 / pi) * sum(abs(x[3:length(x)]) * 
+                                                 abs(x[1:(length(x) - 2)]), na.rm = TRUE)
+})
+
+# Computation of TQ statistic (fourth moment)
+tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
+  length(x)^2/(length(x) - 4) / (0.8313)^3 * sum(abs(x[1 : (length(x) - 4)])^(4/3) * 
+                                                   abs(x[2 : (length(x) - 3)]^(4/3)) * 
+                                                   abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
+})
+
+# New data table with all the computed data
+ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE) / f, 
+                 RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
+                 RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
+             by = list(date)][, BPV := bpv][, TQ := tq]
+
+rm(bpv, tq, lr)
+
+# Save data table
+save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
 
 
 ########## Starting point III (from data table) ##########
-path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-coin = 'BTC'
+path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+coin <- 'BTC'
+f <- 1
 
 # Load the data
-load(paste0(path, 'bintable_', coin, '.RData'))
+load(paste0(path, 'bintable_', coin, f, '.RData'))
 
 # Plot histogram of the standardized returns
 hist(ntable[, ret], main = 'Distribution of BTC Standardized Log Returns', xlab = NA, prob = TRUE, 
@@ -277,7 +367,7 @@ rm(garchs)
 plot.ts(sqrt(ntable$RV[23 : L]), ylab = NA, main = 'Gold Estimated Volatility Comparison', font.main = 1)
 lines(garch@fit$sigma[23 : L], col = 'blue')
 lines(HAR$fitted.values, col = 'red')
-legend('top', ncol = 3, col = c('black', 'blue', 'red'), lwd = 2, bty = 'n',
+legend('topleft', ncol = 3, col = c('black', 'blue', 'red'), lwd = 2, bty = 'n',
        legend = c('RV', 'GARCH(1, 1)', 'HAR'))
 
 # Mean square error and mean absolute error
