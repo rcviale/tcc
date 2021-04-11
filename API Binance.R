@@ -4,13 +4,15 @@ library(jsonlite)
 rm(list = ls())
 
 base <- "https://api.binance.com/"
-coin <- 'XRP'
+coin <- 'ETH'
 ticker <- paste0(coin, 'USDT')
-inidate <- '2018-06-01'
+inidate <- '2017-09-01'
 enddate <- '2021-03-31'
 
 # Days x time ranges
 days <- seq(as.Date(inidate), as.Date(enddate), by = "days")
+
+rm(inidate, enddate)
 
 f <- 2
 N <- f * length(days)
@@ -30,6 +32,8 @@ for (i in 1 : length(days)){
     end[i, j] <- paste0(as.numeric(as.POSIXct(paste0(days[i], ' ', times_end[j]), tz = 'UTC'))/10, '0000')
   }
 }
+
+rm(times_start, times_end, days)
 
 # First day and time range
 binraw <- GET(url = base, path = '/api/v3/klines', 
@@ -66,7 +70,7 @@ rm(binraw, binix2, binraw2)
 binix <- apply(binix, 2, as.numeric)
 
 # Download the remaining data, merging it with the first day
-for (i in 2 : length(days)){
+for (i in 2 : nrow(start)){
   for (j in 1 : f){
     binraw <- GET(url = base, path = '/api/v3/klines', 
                   query = list(
@@ -77,9 +81,11 @@ for (i in 2 : length(days)){
                     limit = as.integer(1000)
                   ))
     nbinix <- fromJSON(content(binraw, "text"), flatten = TRUE)
-    nbinix <- apply(nbinix, 2, as.numeric)
-    binix <- rbind(binix, nbinix)
-    Sys.sleep(0.1)
+    if (is.null(dim(nbinix)) == FALSE){
+      nbinix <- apply(nbinix, 2, as.numeric)
+      binix <- rbind(binix, nbinix)
+      Sys.sleep(0.1)
+    }
   }
 }
 

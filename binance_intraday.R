@@ -1,8 +1,6 @@
 ########## Starting point I (from raw imported matrix data) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 coin <- 'XRP'
-inidate <- '2018-06-01' # Take these dates from API Binance code
-enddate <- '2021-03-31'
 
 # Load data in matrix form
 load(paste0(path, 'binix_', coin, '.RData'))
@@ -26,6 +24,10 @@ binframe[, 1] <- anytime::anytime(binframe[, 1], asUTC = TRUE)
 
 # Separate date and time
 binframe <- tidyr::separate(binframe, col = open_time, into = c('date', 'time'), sep = ' ')
+
+# Save initial and ending date
+inidate <- binframe[1, 1]
+enddate <- binframe[nrow(binframe), 1]
 
 # Separate day, month and year
 binframe <- tidyr::separate(binframe, col = date, into = c("year", "month", "day"), sep = "-")
@@ -55,8 +57,8 @@ binframe <- binframe[, c(1:2, 6:12)]
 
 # Eliminate first rows (before the data actually starts) and last rows (after the
 # data actually ends)
-binframe <- binframe[(which(binframe[, 1] == inidate)[2] : nrow(binframe)), ]
-binframe <- binframe[(1 :  which(binframe[, 1] == (as.Date(enddate) + 1))[1]), ]
+binframe <- binframe[(which(binframe[, 1] == inidate)[1] : 
+                        which(binframe[, 1] == (as.Date(enddate) + 1))[1]), ]
 
 # Convert back to data.frame 
 binframe <- as.data.frame(binframe)
