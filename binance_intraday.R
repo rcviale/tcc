@@ -1,6 +1,6 @@
 ########## Starting point I (from raw imported matrix data) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-coin <- 'XRP'
+coin <- 'ETH'
 
 # Load data in matrix form
 load(paste0(path, 'binix_', coin, '.RData'))
@@ -8,11 +8,8 @@ load(paste0(path, 'binix_', coin, '.RData'))
 # Sort data
 binix <- binix[order(binix[, 1]), ]
 
-# Convert open_time column to second-based UNIX timestamp
+# Convert open_time column to second-based UNIX time stamp
 binix[, 1] <- binix[, 1] / 1000
-
-# Convert open to close time
-binix[, 1] <- binix[, 1] + 60
 
 # Convert to data.frame
 binframe <- as.data.frame(binix)
@@ -57,8 +54,8 @@ binframe <- binframe[, c(1:2, 6:12)]
 
 # Eliminate first rows (before the data actually starts) and last rows (after the
 # data actually ends)
-binframe <- binframe[(which(binframe[, 1] == inidate)[1] : 
-                        which(binframe[, 1] == (as.Date(enddate) + 1))[1]), ]
+binframe <- binframe[(which(binframe[, 1] == inidate)[1]) :
+                       (which(binframe[, 1] == as.character(as.Date(enddate) + 1))[1]), ]
 
 # Convert back to data.frame 
 binframe <- as.data.frame(binframe)
@@ -67,7 +64,7 @@ binframe <- as.data.frame(binframe)
 colnames(binframe) <- c('date', 'time', colnames(binframe)[3 : ncol(binframe)])
 
 # Create a sequence with all the days that should exist in the data set
-days <- seq(as.Date(inidate), as.Date(enddate), by = "days")
+length(seq(as.Date(inidate), as.Date(enddate), by = "days"))
 
 # Actual number of days in the data set
 nrow(binframe) / 1440
@@ -80,7 +77,7 @@ del <- which(is.na(binframe[, 1]))
 # Delete the rows
 binframe <- binframe[-del, ]
 
-rm(del, days)
+rm(del)
 
 # Save the new data frame
 save(binframe, file = paste0(path, 'binframe_', coin, '.RData'))
