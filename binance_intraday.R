@@ -1,6 +1,8 @@
 ########## Starting point I (from raw imported matrix data) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 coin <- 'XRP'
+inidate <- '2018-06-01' # Take these dates from API Binance code
+enddate <- '2021-03-31'
 
 # Load data in matrix form
 load(paste0(path, 'binix_', coin, '.RData'))
@@ -53,8 +55,8 @@ binframe <- binframe[, c(1:2, 6:12)]
 
 # Eliminate first rows (before the data actually starts) and last rows (after the
 # data actually ends)
-binframe <- binframe[(which(binframe[, 1] == '2018-06-01')[2] : nrow(binframe)), ]
-binframe <- binframe[(1 :  which(binframe[, 1] == '2021-04-01')[1]), ]
+binframe <- binframe[(which(binframe[, 1] == inidate)[2] : nrow(binframe)), ]
+binframe <- binframe[(1 :  which(binframe[, 1] == (as.Date(enddate) + 1))[1]), ]
 
 # Convert back to data.frame 
 binframe <- as.data.frame(binframe)
@@ -63,7 +65,7 @@ binframe <- as.data.frame(binframe)
 colnames(binframe) <- c('date', 'time', colnames(binframe)[3 : ncol(binframe)])
 
 # Create a sequence with all the days that should exist in the data set
-days <- seq(as.Date("2018-06-01"), as.Date("2021-03-31"), by = "days")
+days <- seq(as.Date(inidate), as.Date(enddate), by = "days")
 
 # Actual number of days in the data set
 nrow(binframe) / 1440

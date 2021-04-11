@@ -6,32 +6,27 @@ rm(list = ls())
 base <- "https://api.binance.com/"
 coin <- 'XRP'
 ticker <- paste0(coin, 'USDT')
+inidate <- '2018-06-01'
+enddate <- '2021-03-31'
 
 # Days x time ranges
-days <- seq(as.Date("2018-06-01"), as.Date("2021-03-31"), by = "days")
+days <- seq(as.Date(inidate), as.Date(enddate), by = "days")
 
 f <- 2
 N <- f * length(days)
+
+
+# Times for starting and ending ranges
+times_start <- c('00:00:00', '12:00:00')
+times_end <- c('11:59:00', '23:59:00')
 
 # Matrix with all start and end dates in ISO8601 format
 start <- matrix(ncol = f, nrow = (N/f))
 end <- matrix(ncol = f, nrow = (N/f))
 
-
-# Times for starting ranges
-times_start <- rep(c('00:00:00', '12:00:00'), (N/f))
-
 for (i in 1 : length(days)){
   for (j in 1 : f){
     start[i, j] <- paste0(as.numeric(as.POSIXct(paste0(days[i], ' ', times_start[j]), tz = 'UTC'))/10, '0000')
-  }
-}
-
-# Times for ending ranges
-times_end <- rep(c('11:59:00', '23:59:00'), (N/f))
-
-for (i in 1 : length(days)){
-  for (j in 1 : f){
     end[i, j] <- paste0(as.numeric(as.POSIXct(paste0(days[i], ' ', times_end[j]), tz = 'UTC'))/10, '0000')
   }
 }
