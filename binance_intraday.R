@@ -1,6 +1,6 @@
 ########## Starting point I (from raw imported matrix data) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-coin <- 'ETH'
+coin <- 'BTC'
 
 # Load data in matrix form
 load(paste0(path, 'binix_', coin, '.RData'))
@@ -55,7 +55,9 @@ binframe <- binframe[, c(1:2, 6:12)]
 # Eliminate first rows (before the data actually starts) and last rows (after the
 # data actually ends)
 binframe <- binframe[(which(binframe[, 1] == inidate)[1]) :
-                       (which(binframe[, 1] == as.character(as.Date(enddate) + 1))[1]), ]
+                     (which(binframe[, 1] == as.character(as.Date(enddate)))[1440]), ]
+
+rm(inidate, enddate)
 
 # Convert back to data.frame 
 binframe <- as.data.frame(binframe)
@@ -69,18 +71,21 @@ length(seq(as.Date(inidate), as.Date(enddate), by = "days"))
 # Actual number of days in the data set
 nrow(binframe) / 1440
 
-# The complete function added more rows than there should be (with NA date values)
-# Creating a vector with the row numbers that should be deleted
+# The complete function adds more rows than there should be (with NA date values)
+# because it creates rows with non-existing dates (i.e. 31/02)
+# Creating a vector with the row numbers that have NA dates
 del <- vector()
 del <- which(is.na(binframe[, 1]))
 
-# Delete the rows
+# Delete the rows with NA dates
 binframe <- binframe[-del, ]
 
 rm(del)
 
 # Save the new data frame
 save(binframe, file = paste0(path, 'binframe_', coin, '.RData'))
+
+rm(list = ls())
 
 ########## Starting point II (from data frame) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
@@ -100,7 +105,7 @@ rm(binframe)
 # Set keys for data table
 setkey(bintable, date, time)
 
-
+#
 ########## PLOTS ##########
 # Logs of total financial volume by time of day and date
 fv_time <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
@@ -132,7 +137,8 @@ rm(xlabs, x, y, fv_time, fv_date, i)
 
 
 ########## DATA PREP FOR TABLES ##########
-## 1 MIN RETURNS ##
+#### 1 MIN RETURNS ####
+# Set sampling frequency
 f <- 1
 
 # New data table with log difs and indicator functions for positive/negative
@@ -147,19 +153,27 @@ bpv <- tapply(lr[, ret], lr[, date], function(x){
 })
 
 # Computation of TQ statistic (fourth moment)
-tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
+tq <- tapply(lr[, ret], lr[, date], function(x){
   length(x)^2/(length(x) - 4) / (0.8313)^3 * sum(abs(x[1 : (length(x) - 4)])^(4/3) * 
                                                    abs(x[2 : (length(x) - 3)]^(4/3)) * 
                                                    abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
+})
+
+# MedRV Computation
+medrv <- tapply(lr[, ret], lr[, date], function(x){
+  sum(unlist(lapply(3 : length(x), function(t){
+    return(median(abs(x[(t - 2) : t]), na.rm = TRUE)^2) # Return 3 absolute values
+  })), na.rm = TRUE) * # Take the median, unlist, square it 
+    (pi / (6 - 4 * sqrt(3) + pi)) * (length(x) / (length(x) - 2)) # Multiply by constant
 })
 
 # New data table with all the computed data
 ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE) / f, 
                  RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
                  RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
-             by = list(date)][, BPV := bpv][, TQ := tq]
+             by = list(date)][, BPV := bpv][, TQ := tq][, medRV := medrv]
 
-rm(bpv, tq, lr)
+rm(bpv, tq, lr, medrv)
 
 # Save data table
 save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
@@ -323,10 +337,12 @@ rm(nd5, nd22)
 L5 <- length(rvol5)
 L22 <- length(rvol22)
 
-# HAR model
+# HAR basic model
 HAR <- lm(sqrt(ntable[23 : L, RV]) ~ sqrt(ntable[22 : (L - 1), RV]) + 
             rvol5[18 : (L5 - 1)] + rvol22[1 : (L22 - 1)])
 summary(HAR)
+
+rm(rvol5, rvol22)
 
 # Plot of estimated volatility compared to realized volatility
 plot.ts(HAR$fitted.values, ylab = NA, main = 'BTC Estimated Volatility', font.main = 1)
@@ -356,6 +372,23 @@ Box.test(residuals(HAR), type = 'Ljung-Box', lag = 5)
 # Breusch-Pagan test (H0: homoskedasticity)
 lmtest::bptest(HAR)
 
+
+# Prep moving averages for MedRV
+nd5 <- unlist(lapply(lapply(5 : L, function(t){return(ntable[(t - 4) : t, medRV])}), mean))
+nd22 <- unlist(lapply(lapply(22 : L, function (t) {return(ntable[(t - 21) : t, medRV])}), mean))
+
+medvol5 <- sqrt(nd5) 
+medvol22 <- sqrt(nd22)
+
+rm(nd5, nd22)
+
+# HAR MedRV model
+medHAR <- lm(sqrt(ntable[23 : L, medRV]) ~ sqrt(ntable[22 : (L - 1), medRV]) + 
+            medvol5[18 : (L5 - 1)] + medvol22[1 : (L22 - 1)])
+summary(medHAR)
+
+rm(medvol5, medvol22)
+
 ########## GARCH(1, 1) Comparison ##########
 # GARCH(1, 1) model for the data
 garchs <- rugarch::ugarchspec(mean.model = list(armaOrder = c(0, 0)), 
@@ -364,34 +397,41 @@ garch <- rugarch::ugarchfit(garchs, ntable[, ret])
 
 rm(garchs)
 
-# Comparison between basic HAR, Assymetric HAR, Jumps HAR and GARCH(1, 1)
-plot.ts(sqrt(ntable$RV[23 : L]), ylab = NA, main = 'Gold Estimated Volatility Comparison', font.main = 1)
+# Comparison between HAR and GARCH(1, 1)
+plot.ts(sqrt(ntable$RV[23 : L]), ylab = NA, 
+        main = paste0(coin, ' Estimated Volatility Comparison'), font.main = 1)
 lines(garch@fit$sigma[23 : L], col = 'blue')
 lines(HAR$fitted.values, col = 'red')
-legend('topleft', ncol = 3, col = c('black', 'blue', 'red'), lwd = 2, bty = 'n',
-       legend = c('RV', 'GARCH(1, 1)', 'HAR'))
+lines(medHAR$fitted.values, col = 'green')
+legend('topleft', ncol = 4, col = c('black', 'blue', 'red', 'green'), lwd = 2, bty = 'n',
+       legend = c('RV', 'GARCH(1, 1)', 'HAR', 'MedRV HAR'))
 
 # Mean square error and mean absolute error
 mu <- sqrt(ntable$RV[23 : L])
 
 HAR_fv <- HAR$fitted.values
+medHAR_fv <- medHAR$fitted.values
 GARCH_fv <- garch@fit$sigma[23 : L]
 
 mse_HAR <- mean((mu - HAR_fv)^2)
+mse_medHAR <- mean((mu - medHAR_fv)^2)
 mse_GARCH <- mean((mu - GARCH_fv)^2)
 
 mae_HAR <- mean(abs(mu - HAR_fv))
+mae_medHAR <- mean(abs(mu - medHAR_fv))
 mae_GARCH <- mean(abs(mu - GARCH_fv))
 
-eix <- matrix(ncol = 2, nrow = 2)
+eix <- matrix(ncol = 2, nrow = 3)
 
 colnames(eix) <- c('MSE', 'MAE')
 rownames(eix) <- c('HAR', 'GARCH(1, 1)')
 
 eix[1, 1] <- mse_HAR * 1000000
 eix[1, 2] <- mae_HAR * 1000000
-eix[2, 1] <- mse_GARCH * 1000000
-eix[2, 2] <- mae_GARCH * 1000000
+eix[2, 1] <- mse_medHAR * 1000000
+eix[2, 2] <- mae_medHAR * 1000000
+eix[3, 1] <- mse_GARCH * 1000000
+eix[3, 2] <- mae_GARCH * 1000000
 
 View(eix)
 
