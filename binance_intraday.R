@@ -80,6 +80,8 @@ del <- which(is.na(binframe[, 1]))
 # Delete the rows with NA dates
 binframe <- binframe[-del, ]
 
+nrow(binframe) / 1440
+
 rm(del)
 
 # Save the new data frame
@@ -199,13 +201,21 @@ tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
                                                    abs(x[3 : (length(x) - 2)]^(4/3)), na.rm = TRUE)
 })
 
+# MedRV Computation
+medrv <- tapply(lr[, ret], lr[, date], function(x){
+  sum(unlist(sapply(sapply(3 : length(x), function(t){
+    return(abs(x[(t - 2) : t])) # Return 3 absolute values
+  }), median))^2, na.rm = TRUE) * # Take the median, unlist, square it 
+    (pi / (6 - 4 * sqrt(3) + pi)) * (length(x) / (length(x) - 2)) # Multiply by constant
+})
+
 # New data table with all the computed data
 ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE) / f, 
                  RSP = sum((ret^2) * Ipos, na.rm = TRUE), RVOL = sqrt(sum(ret^2, na.rm = TRUE)), 
                  RSN = sum((ret^2) * Ineg, na.rm = TRUE), .N), 
-             by = list(date)][, BPV := bpv][, TQ := tq]
+             by = list(date)][, BPV := bpv][, TQ := tq][, medRV := medrv]
 
-rm(bpv, tq, lr)
+rm(bpv, tq, lr, medrv)
 
 # Save data table
 save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
@@ -343,10 +353,6 @@ HAR <- lm(sqrt(ntable[23 : L, RV]) ~ sqrt(ntable[22 : (L - 1), RV]) +
 summary(HAR)
 
 rm(rvol5, rvol22)
-
-# Plot of estimated volatility compared to realized volatility
-plot.ts(HAR$fitted.values, ylab = NA, main = 'BTC Estimated Volatility', font.main = 1)
-lines(sqrt(ntable$RV[23 : nrow(ntable)]), col = 'red', lty = 2)
 
 # Histogram of the residuals
 hist(residuals(HAR), breaks = 50, font.main = 1, main = 'Histogram of the Residuals of the HAR Model',
