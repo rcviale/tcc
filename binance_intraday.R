@@ -432,12 +432,12 @@ eix <- matrix(ncol = 3, nrow = 3)
 colnames(eix) <- c('Model', 'MSE', 'MAE')
 eix[, 1] <- c('HAR-RV', 'HAR-MedRV', 'GARCH(1, 1)')
 
-eix[1, 2] <- mse_HAR * 1000000
-eix[1, 3] <- mae_HAR * 1000000
-eix[2, 2] <- mse_medHAR * 1000000
-eix[2, 3] <- mae_medHAR * 1000000
-eix[3, 2] <- mse_GARCH * 1000000
-eix[3, 3] <- mae_GARCH * 1000000
+eix[1, 2] <- mse_HAR * 1000
+eix[1, 3] <- mae_HAR * 1000
+eix[2, 2] <- mse_medHAR * 1000
+eix[2, 3] <- mae_medHAR * 1000
+eix[3, 2] <- mse_GARCH * 1000
+eix[3, 3] <- mae_GARCH * 1000
 
 View(eix)
 
