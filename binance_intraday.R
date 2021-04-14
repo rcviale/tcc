@@ -144,7 +144,7 @@ rm(xlabs, x, y, fv_time, fv_date, i)
 f <- 1
 
 # New data table with log difs and indicator functions for positive/negative
-lr <- bintable[, .(ret = diff(log(close), lag = f)), by = list(date)]
+lr <- bintable[, .(ret = diff(log(open), lag = f)), by = list(date)]
 lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
 lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
 
@@ -164,9 +164,9 @@ tq <- tapply(lr[, ret], lr[, date], function(x){
 # MedRV Computation
 medrv <- tapply(lr[, ret], lr[, date], function(x){
   sum(unlist(lapply(3 : length(x), function(t){
-    return(median(abs(x[(t - 2) : t]), na.rm = TRUE)^2) # Return 3 absolute values
-  })), na.rm = TRUE) * # Take the median, unlist, square it 
-    (pi / (6 - 4 * sqrt(3) + pi)) * (length(x) / (length(x) - 2)) # Multiply by constant
+    return(median(abs(x[(t - 2) : t]), na.rm = TRUE)^2) 
+  })), na.rm = TRUE) * 
+    (pi / (6 - 4 * sqrt(3) + pi)) * (length(x) / (length(x) - 2)) / f
 })
 
 # New data table with all the computed data
@@ -184,7 +184,7 @@ save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
 f <- 5
 
 # New data table with log difs and indicator functions for positive/negative
-lr <- bintable[, .(ret = diff(log(close), lag = f)), by = list(date)]
+lr <- bintable[, .(ret = diff(log(open), lag = f)), by = list(date)]
 lr <- lr[, Ipos:= ifelse(ret > 0, 1, 0)][,N:= .N, by = date]
 lr <- lr[, Ineg:= ifelse(ret < 0, 1, 0)]
 
@@ -203,10 +203,10 @@ tq <- tapply(lr[, ret], lr[, date], function(x){ # TQ estimates
 
 # MedRV Computation
 medrv <- tapply(lr[, ret], lr[, date], function(x){
-  sum(unlist(sapply(sapply(3 : length(x), function(t){
-    return(abs(x[(t - 2) : t])) # Return 3 absolute values
-  }), median))^2, na.rm = TRUE) * # Take the median, unlist, square it 
-    (pi / (6 - 4 * sqrt(3) + pi)) * (length(x) / (length(x) - 2)) # Multiply by constant
+  sum(unlist(lapply(3 : length(x), function(t){
+    return(median(abs(x[(t - 2) : t]), na.rm = TRUE)^2) 
+  })), na.rm = TRUE) * 
+    (pi / (6 - 4 * sqrt(3) + pi)) * (length(x) / (length(x) - 2)) / f
 })
 
 # New data table with all the computed data
@@ -427,17 +427,17 @@ mae_HAR <- mean(abs(mu - HAR_fv))
 mae_medHAR <- mean(abs(mu - medHAR_fv))
 mae_GARCH <- mean(abs(mu - GARCH_fv))
 
-eix <- matrix(ncol = 2, nrow = 3)
+eix <- matrix(ncol = 3, nrow = 3)
 
-colnames(eix) <- c('MSE', 'MAE')
-rownames(eix) <- c('HAR', 'GARCH(1, 1)')
+colnames(eix) <- c('Model', 'MSE', 'MAE')
+eix[, 1] <- c('HAR-RV', 'HAR-MedRV', 'GARCH(1, 1)')
 
-eix[1, 1] <- mse_HAR * 1000000
-eix[1, 2] <- mae_HAR * 1000000
-eix[2, 1] <- mse_medHAR * 1000000
-eix[2, 2] <- mae_medHAR * 1000000
-eix[3, 1] <- mse_GARCH * 1000000
-eix[3, 2] <- mae_GARCH * 1000000
+eix[1, 2] <- mse_HAR * 1000000
+eix[1, 3] <- mae_HAR * 1000000
+eix[2, 2] <- mse_medHAR * 1000000
+eix[2, 3] <- mae_medHAR * 1000000
+eix[3, 2] <- mse_GARCH * 1000000
+eix[3, 3] <- mae_GARCH * 1000000
 
 View(eix)
 
