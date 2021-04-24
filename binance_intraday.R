@@ -320,7 +320,9 @@ save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
 ########## Starting point III (from data table) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 coin <- 'BTC'
-f <- 1
+f <- 5
+
+library(data.table)
 
 # Load the data
 load(paste0(path, 'bintable_', coin, f, '.RData'))
@@ -378,7 +380,6 @@ Box.test(residuals(HAR), type = 'Ljung-Box', lag = 5)
 # Breusch-Pagan test (H0: homoskedasticity)
 lmtest::bptest(HAR)
 
-
 # Prep moving averages for MedRV
 nd5 <- unlist(lapply(lapply(5 : L, function(t){return(ntable[(t - 4) : t, medRV])}), mean))
 nd22 <- unlist(lapply(lapply(22 : L, function (t) {return(ntable[(t - 21) : t, medRV])}), mean))
@@ -394,6 +395,59 @@ medHAR <- lm(sqrt(ntable[23 : L, medRV]) ~ sqrt(ntable[22 : (L - 1), medRV]) +
 summary(medHAR)
 
 rm(medvol5, medvol22)
+
+# HAR 7-28
+# 7-days and 28-days moving average of RV
+nd7 <- unlist(lapply(lapply(7 : L, function(t){return(ntable[(t - 6) : t, RV])}), mean))
+nd28 <- unlist(lapply(lapply(28 : L, function (t) {return(ntable[(t - 27) : t, RV])}), mean))
+
+# 7-days and 28-days moving average of volatility
+rvol7 <- sqrt(nd7) 
+rvol28 <- sqrt(nd28)
+
+rm(nd7, nd28)
+
+L7 <- length(rvol7)
+L28 <- length(rvol28)
+
+# HAR 7-28 model
+HAR728 <- lm(sqrt(ntable[29 : L, RV]) ~ sqrt(ntable[28 : (L - 1), RV]) + 
+            rvol7[22 : (L7 - 1)] + rvol28[1 : (L28 - 1)])
+summary(HAR728)
+
+rm(rvol7, rvol28)
+
+# HAR matrix comparison
+harix <- matrix(ncol = 28, nrow = 28)
+cols <- 2:28
+
+# HAR time windows specifications looping
+for (i in 2 : 27){
+  for (j in cols[i] : 28){
+    mai <- unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean))
+    maj <- unlist(lapply(lapply(j : L, function (t) {return(ntable[(t - (j - 1)) : t, RV])}), mean))
+    
+    mai <- sqrt(mai)
+    maj <- sqrt(maj)
+    
+    Li <- length(mai)
+    Lj <- length(maj)
+    
+    model <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
+                      mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)])
+    rsq <- summary(model)$r.squared
+    harix[i, j] <- rsq
+  }
+}
+
+for (i in 1:28){
+  for (j in 1:28){
+    if (is.na(harix[i, j])){harix[i, j] <- 0}
+  }
+}
+
+# Save matrix with R Squared
+save(harix, file = paste0(path, 'harix_', coin, f, '.RData'))
 
 ########## GARCH(1, 1) Comparison ##########
 # GARCH(1, 1) model for the data
