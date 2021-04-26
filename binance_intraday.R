@@ -398,7 +398,7 @@ rm(medvol5, medvol22)
 
 # HAR 7-28
 # 7-days and 28-days moving average of RV
-nd7 <- unlist(lapply(lapply(7 : L, function(t){return(ntable[(t - 6) : t, RV])}), mean))
+nd7 <- unlist(lapply(lapply(2 : L, function(t){return(ntable[(t - 1) : t, RV])}), mean))
 nd28 <- unlist(lapply(lapply(28 : L, function (t) {return(ntable[(t - 27) : t, RV])}), mean))
 
 # 7-days and 28-days moving average of volatility
@@ -412,8 +412,12 @@ L28 <- length(rvol28)
 
 # HAR 7-28 model
 HAR728 <- lm(sqrt(ntable[29 : L, RV]) ~ sqrt(ntable[28 : (L - 1), RV]) + 
-            rvol7[22 : (L7 - 1)] + rvol28[1 : (L28 - 1)])
+            rvol7[27 : (L7 - 1)] + rvol28[1 : (L28 - 1)])
 summary(HAR728)
+
+HAR728f <- lm(sqrt(ntable[29 : L, RV]) ~ sqrt(ntable[28 : (L - 1), RV]) + 
+               rvol7[27 : (L7 - 1)] + rvol28[1 : (L28 - 1)])
+summary(HAR728f)
 
 rm(rvol7, rvol28)
 
