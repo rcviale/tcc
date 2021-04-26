@@ -417,11 +417,11 @@ summary(HAR728)
 
 rm(rvol7, rvol28)
 
-# HAR matrix comparison
-harix <- matrix(ncol = 28, nrow = 28)
+# HAR different time windows comparison
 cols <- 2:28
+crame <- data.frame()
 
-# HAR time windows specifications looping
+# Loop to fill data.frame
 for (i in 2 : 27){
   for (j in cols[i] : 28){
     mai <- unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean))
@@ -434,20 +434,21 @@ for (i in 2 : 27){
     Lj <- length(maj)
     
     model <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
-                      mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)])
-    rsq <- summary(model)$r.squared
-    harix[i, j] <- rsq
+                  mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)])
+    
+    crame[(nrow(crame) + 1), 1] <- paste0('(', i, ', ', j, ')')
+    crame[nrow(crame), 2] <- summary(model)$r.squared
+    crame[nrow(crame), 3] <- BIC(model)
+    
   }
 }
 
-for (i in 1:28){
-  for (j in 1:28){
-    if (is.na(harix[i, j])){harix[i, j] <- 0}
-  }
-}
+colnames(crame) <- c('Spec', 'Rsq', 'BIC')
+View(crame)
 
-# Save matrix with R Squared
-save(harix, file = paste0(path, 'harix_', coin, f, '.RData'))
+save(crame, file = paste0(path, 'crame_', coin, f, '.RData'))
+
+load(paste0(path, 'crame_', coin, f, '.RData'))
 
 ########## GARCH(1, 1) Comparison ##########
 # GARCH(1, 1) model for the data
