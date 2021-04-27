@@ -396,36 +396,13 @@ summary(medHAR)
 
 rm(medvol5, medvol22)
 
-# HAR 7-28
-# 7-days and 28-days moving average of RV
-nd7 <- unlist(lapply(lapply(2 : L, function(t){return(ntable[(t - 1) : t, RV])}), mean))
-nd28 <- unlist(lapply(lapply(28 : L, function (t) {return(ntable[(t - 27) : t, RV])}), mean))
-
-# 7-days and 28-days moving average of volatility
-rvol7 <- sqrt(nd7) 
-rvol28 <- sqrt(nd28)
-
-rm(nd7, nd28)
-
-L7 <- length(rvol7)
-L28 <- length(rvol28)
-
-# HAR 7-28 model
-HAR728 <- lm(sqrt(ntable[29 : L, RV]) ~ sqrt(ntable[28 : (L - 1), RV]) + 
-            rvol7[27 : (L7 - 1)] + rvol28[1 : (L28 - 1)])
-summary(HAR728)
-
-HAR728f <- lm(sqrt(ntable[29 : L, RV]) ~ sqrt(ntable[28 : (L - 1), RV]) + 
-               rvol7[27 : (L7 - 1)] + rvol28[1 : (L28 - 1)])
-summary(HAR728f)
-
-rm(rvol7, rvol28)
-
 # HAR different time windows comparison
 cols <- 2:28
 crame <- data.frame()
+dow <- factor(rep(c(5:7, 1:4), 187)[1 : L], 1:7)
+wd <- factor(rep(c(1, 0, 0, 1, 1, 1, 1), 187)[1 : L], c(0, 1))
 
-# Loop to fill data.frame
+# Loop to fill data frame with Rsq and BIC for different HAR models
 for (i in 2 : 27){
   for (j in cols[i] : 28){
     mai <- unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean))
@@ -437,22 +414,80 @@ for (i in 2 : 27){
     Li <- length(mai)
     Lj <- length(maj)
     
+    # HAR model
     model <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
                   mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)])
     
+    # HAR model with days of the week factor
+    use_dow <- dow[1 : L]
+    model_d <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
+                  mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)] + dow[(j + 1) : L])
+    
+    # HAR model with working days dummy
+    model_w <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
+                    mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)] + wd[(j + 1) : L])
+    
+    # Fill data frame
     crame[(nrow(crame) + 1), 1] <- paste0('(', i, ', ', j, ')')
     crame[nrow(crame), 2] <- summary(model)$r.squared
     crame[nrow(crame), 3] <- BIC(model)
+    crame[nrow(crame), 4] <- summary(model_d)$r.squared
+    crame[nrow(crame), 5] <- BIC(model_d)
+    crame[nrow(crame), 6] <- summary(model_w)$r.squared
+    crame[nrow(crame), 7] <- BIC(model_w)
     
   }
 }
 
-colnames(crame) <- c('Spec', 'Rsq', 'BIC')
+rm(model, model_d, model_w, maj, mai, Lj, Li, i, j, cols)
+
+# Column names for HAR comparison data frame
+colnames(crame) <- c('Spec', 'HAR Rsq', 'HAR BIC', 'HAR-DOW Rsq', 'HAR-DOW BIC',
+                     'HAR-WD Rsq', 'HAR-WD BIC')
 View(crame)
 
 save(crame, file = paste0(path, 'crame_', coin, f, '.RData'))
+xlsx::write.xlsx(crame, file = paste0(path, 'crame_', coin, f, '.RData'))
 
 load(paste0(path, 'crame_', coin, f, '.RData'))
+
+### Specific HAR Construction ###
+# Time windows do be used
+short <- 5
+long <- 15
+
+# Moving averages of RV
+nds <- unlist(lapply(lapply(short : L, function(t){return(ntable[(t - (short - 1)) : t, RV])}), mean))
+ndl <- unlist(lapply(lapply(long : L, function (t) {return(ntable[(t - (long - 1)) : t, RV])}), mean))
+
+# Moving average of volatility
+rvols <- sqrt(nds)
+rvoll <- sqrt(ndl)
+
+rm(nds, ndl)
+
+Ls <- length(rvols)
+Ll <- length(rvoll)
+
+# Specific HAR model
+HAR <- lm(sqrt(ntable[(long + 1) : L, RV]) ~ sqrt(ntable[(long) : (L - 1), RV]) + 
+               rvols[(long - short + 1) : (Ls - 1)] + rvoll[1 : (Ll - 1)])
+summary(HAR)
+BIC(HAR)
+
+# Specific HAR model with day of the week factor
+HAR_dow <- lm(sqrt(ntable[(long + 1) : L, RV]) ~ sqrt(ntable[(long) : (L - 1), RV]) + 
+            rvols[(long - short + 1) : (Ls - 1)] + rvoll[1 : (Ll - 1)] + dow[(long + 1) : L])
+summary(HAR_dow)
+BIC(HAR_dow)
+
+# Specific HAR model with working days dummy
+HAR_wd <- lm(sqrt(ntable[(long + 1) : L, RV]) ~ sqrt(ntable[(long) : (L - 1), RV]) + 
+                rvols[(long - short + 1) : (Ls - 1)] + rvoll[1 : (Ll - 1)] + wd[(long + 1) : L])
+summary(HAR_wd)
+BIC(HAR_wd)
+
+rm()
 
 ########## GARCH(1, 1) Comparison ##########
 # GARCH(1, 1) model for the data
