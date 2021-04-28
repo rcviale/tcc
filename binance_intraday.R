@@ -93,6 +93,12 @@ rm(list = ls())
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 coin <- 'BTC'
 
+# Load data
+load(paste0(path, 'binframe_', coin, '.RData'))
+
+# Load data.table package
+library(data.table)
+
 # Create factor variables for days of the week
 dow <- as.POSIXlt(seq(as.Date(binframe[1, 1]),
                       as.Date(binframe[nrow(binframe), 1]),
@@ -102,12 +108,6 @@ wd <- sapply(1 : length(dow), function(x){
   ifelse(dow[x] == 0 || dow[x] == 6, 0, 1)
 })
 
-# Load data
-load(paste0(path, 'binframe_', coin, '.RData'))
-
-# Load data.table package
-library(data.table)
-
 # Transform into data.table
 bintable <- setDT(binframe)
 
@@ -116,7 +116,7 @@ rm(binframe)
 # Set keys for data table
 setkey(bintable, date, time)
 
-#
+
 ########## PLOTS ##########
 # Logs of total financial volume by time of day and date
 fv_time <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
@@ -232,7 +232,7 @@ ntable <- lr[, .(ret = sum(ret, na.rm = TRUE) / f, RV = sum(ret^2, na.rm = TRUE)
              by = list(date)][, BPV := bpv][, TQ := tq][, medRV := medrv][, medRV5 := medrv5]
 ntable <- ntable[, dow := dow][, wd := wd]
 
-rm(bpv, tq, lr, medrv)
+rm(bpv, tq, lr, medrv, medrv5)
 
 # Save data table
 save(ntable, file = paste0(path, 'bintable_', coin, f, '.RData'))
@@ -350,8 +350,6 @@ L <- nrow(ntable)
 # HAR different time windows comparison
 cols <- 2:28
 crame <- data.frame()
-dow <- factor(rep(c(5:7, 1:4), 187)[1 : L], 1:7)
-wd <- factor(rep(c(1, 0, 0, 1, 1, 1, 1), 187)[1 : L], c(0, 1))
 
 # Loop to fill data frame with Rsq and BIC for different HAR models
 for (i in 2 : 27){
@@ -406,15 +404,13 @@ rm(crame)
 short <- 5
 long <- 15
 
-# Moving averages of RV
-nds <- unlist(lapply(lapply(short : L, function(t){return(ntable[(t - (short - 1)) : t, RV])}), mean))
-ndl <- unlist(lapply(lapply(long : L, function (t) {return(ntable[(t - (long - 1)) : t, RV])}), mean))
-
-# Moving average of volatility
-rvols <- sqrt(nds)
-rvoll <- sqrt(ndl)
-
-rm(nds, ndl)
+# Moving averages of RVOL
+rvols <- sqrt(unlist(lapply(lapply(short : L, function(t){
+  return(ntable[(t - (short - 1)) : t, RV])
+}), mean)))
+rvoll <- sqrt(unlist(lapply(lapply(long : L, function (t) {
+  return(ntable[(t - (long - 1)) : t, RV])
+}), mean)))
 
 Ls <- length(rvols)
 Ll <- length(rvoll)
@@ -440,36 +436,56 @@ BIC(HAR_wd)
 rm(rvols, rvoll)
 
 # Moving averages of MedRV(3)
-nds <- unlist(lapply(lapply(short : L, function(t){return(ntable[(t - (short - 1)) : t, medRV])}), mean))
-ndl <- unlist(lapply(lapply(long : L, function (t) {return(ntable[(t - (long - 1)) : t, medRV])}), mean))
+medvols <- sqrt(unlist(lapply(lapply(short : L, function(t){return(ntable[(t - (short - 1)) : t, medRV])}), mean)))
+medvoll <- sqrt(unlist(lapply(lapply(long : L, function (t) {return(ntable[(t - (long - 1)) : t, medRV])}), mean)))
 
-# Moving average of volatility
-medvols <- sqrt(nds)
-medvoll <- sqrt(ndl)
-
-rm(nds, ndl)
-
-# HAR MedRV model
+# HAR MedRV(3) model
 medHAR <- lm(sqrt(ntable[(long + 1) : L, medRV]) ~ sqrt(ntable[(long) : (L - 1), medRV]) + 
              medvols[(long - short + 1) : (Ls - 1)] + medvoll[1 : (Ll - 1)])
 summary(medHAR)
 BIC(medHAR)
 
-# HAR MedRV model with day of the week factor
+# HAR MedRV(3) model with day of the week factor
 medHAR_dow <- lm(sqrt(ntable[(long + 1) : L, medRV]) ~ sqrt(ntable[(long) : (L - 1), medRV]) + 
                  medvols[(long - short + 1) : (Ls - 1)] + medvoll[1 : (Ll - 1)] + 
                  ntable[(long + 1) : L, dow])
 summary(medHAR_dow)
 BIC(medHAR_dow)
 
-# HAR MedRV model with working days dummy
+# HAR MedRV(3) model with working days dummy
 medHAR_wd <- lm(sqrt(ntable[(long + 1) : L, medRV]) ~ sqrt(ntable[(long) : (L - 1), medRV]) + 
                 medvols[(long - short + 1) : (Ls - 1)] + medvoll[1 : (Ll - 1)] + 
                 ntable[(long + 1) : L, wd])
 summary(medHAR_wd)
 BIC(medHAR_wd)
 
-rm(medvols, medvoll, Ls, Ll, long)
+rm(medvols, medvoll)
+
+# Moving averages of MedRV(5)
+medvols <- sqrt(unlist(lapply(lapply(short : L, function(t){return(ntable[(t - (short - 1)) : t, medRV5])}), mean)))
+medvoll <- sqrt(unlist(lapply(lapply(long : L, function (t) {return(ntable[(t - (long - 1)) : t, medRV5])}), mean)))
+
+# HAR MedRV(5) model
+medHAR5 <- lm(sqrt(ntable[(long + 1) : L, medRV5]) ~ sqrt(ntable[(long) : (L - 1), medRV5]) + 
+               medvols[(long - short + 1) : (Ls - 1)] + medvoll[1 : (Ll - 1)])
+summary(medHAR5)
+BIC(medHAR5)
+
+# HAR MedRV(5) model with day of the week factor
+medHAR5_dow <- lm(sqrt(ntable[(long + 1) : L, medRV5]) ~ sqrt(ntable[(long) : (L - 1), medRV5]) + 
+                   medvols[(long - short + 1) : (Ls - 1)] + medvoll[1 : (Ll - 1)] + 
+                   ntable[(long + 1) : L, dow])
+summary(medHAR5_dow)
+BIC(medHAR5_dow)
+
+# HAR MedRV(5) model with working days dummy
+medHAR5_wd <- lm(sqrt(ntable[(long + 1) : L, medRV5]) ~ sqrt(ntable[(long) : (L - 1), medRV5]) + 
+                  medvols[(long - short + 1) : (Ls - 1)] + medvoll[1 : (Ll - 1)] + 
+                  ntable[(long + 1) : L, wd])
+summary(medHAR5_wd)
+BIC(medHAR5_wd)
+
+rm(Ls, Ll, medvols, medvoll)
 
 ########## GARCH(1, 1) Comparison ##########
 # GARCH(1, 1) model for the data
