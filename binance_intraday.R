@@ -119,30 +119,28 @@ setkey(bintable, date, time)
 
 ########## PLOTS ##########
 # Logs of total financial volume by time of day and date
-fv_time <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
-fv_date <- bintable[, .(fvol = log(mean(as.numeric(na.omit(quote_asset_vol))))), by = list(date)]
+fv_time <- bintable[, .(fvol = (mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
+fv_date <- bintable[, .(fvol = (mean(as.numeric(na.omit(quote_asset_vol))))), by = list(date)]
 
 # Plots for financial volume by time of day and date
-plot.ts(fv_time[, 2], main = 'Log of $ Volume by Time of Day', ylab = '$ volume')
-plot.ts(fv_date[, 2], main = 'Log of $ Volume by Date', ylab = '$ volume')
+plot.ts(fv_time[, 2], main = '$ Volume by Time of Day', ylab = '$ volume')
+plot.ts(fv_date[, 2], main = '$ Volume by Date', ylab = '$ volume')
 
 # Aggregation of time of day by hour
 x <- seq(1, 1440, 60)
 y <- vector()
 for (i in 1 : length(x)){
-  y[i] <- sum(fv_time[x[i] : (x[i] + 59), 2])
+  y[i] <- sum(fv_time[x[i] : (x[i] + 59), 2]) / 60
 }
 
 # Labels for each hour in the barplot
-xlabs <- seq(4, 24, 4)
-xpos <- seq(13, 85, 14.4)
+xlabs <- seq(1, 24, 1)
 
 # Barplot
-barplot(height = y, width = 3, ylim = c(0.99 * min(y), 1.01 * max(y)), xpd = FALSE,
-        main = 'Log of Mean $ Volume by Hour of Day', ylab = 'Volume',
-        cex.names = 1, xlab = 'Hour')
+barplot(height = y, width = 3, ylim = c(0, 1.01 * max(y)), xpd = FALSE,
+        main = 'Mean $ Volume by Hour of the Day', ylab = 'Volume',
+        cex.names = 1, xlab = 'Hour', names.arg = xlabs)
 box()
-axis(1, at = xpos, labels = xlabs)
 
 rm(xlabs, x, y, fv_time, fv_date, i)
 
@@ -344,6 +342,20 @@ library(data.table)
 # Load the data
 load(paste0(path, 'bintable_', coin, f, '.RData'))
 
+### Descriptive Stats ###
+rvol_dow <- as.matrix(ntable[, (.rvol = mean(RV)), by = list(dow)])
+rvol_dow <- rvol_dow[order(rvol_dow[, 1]), ]
+
+xlabs <- c('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat')
+
+# Barplot
+barplot(height = rvol_dow[, 2], width = 3, xpd = FALSE, names.arg = xlabs,
+        ylim = c(0, 1.03 * (max(rvol_dow[, 2]))), cex.names = 1,
+        main = 'Realized Volatility by Day of the Week', ylab = 'Realized Volatility',
+        xlab = 'Day of the week')
+box()
+
+### HAR Models Construction ###
 # Number of rows in ntable matrix
 L <- nrow(ntable)
 
