@@ -355,6 +355,27 @@ barplot(height = rvol_dow[, 2], width = 3, xpd = FALSE, names.arg = xlabs,
         xlab = 'Day of the week')
 box()
 
+### HAR 1-step ahead forecast Comparison ###
+nfr <- as.data.frame(cbind(y, v1, v2, v3))
+
+predict1 <- function(spec, data, M)
+{
+  P <- nrow(data) - M
+  results <- rep(0, P)
+  
+  for (i in 1 : P) {
+    df.pred <- data[(M + i), ]
+    df.est <- data[1 : (M + i - 1), ]
+    results[i] <- predict(lm(f, data = df.est), newdata = df.pred)
+  }
+  results
+}
+
+test <- predict1(y ~ v1 + v2 + v3, nfr, 365)
+test <- predict(lm(y ~ v1 + v2 + v3, 
+                   data = nfr[1 : 365, ]),
+                   newdata = nfr[366, ])
+
 ### HAR Models Construction ###
 # Number of rows in ntable matrix
 L <- nrow(ntable)
