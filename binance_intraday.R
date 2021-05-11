@@ -355,82 +355,64 @@ barplot(height = rvol_dow[, 2], width = 3, xpd = FALSE, names.arg = xlabs,
         xlab = 'Day of the week')
 box()
 
-### HAR 1-step ahead forecast Comparison ###
-nfr <- as.data.frame(cbind(y, v1, v2, v3))
+##### HAR Models Construction #####
 
-predict1 <- function(spec, data, M)
-{
+### HAR 1-step ahead forecast Comparison ###
+# Number of rows in ntable matrix
+L <- nrow(ntable)
+
+# Function for 1-step ahead forecast
+predict1 <- function(spec, data, M){
   P <- nrow(data) - M
   results <- rep(0, P)
-  
   for (i in 1 : P) {
-    df.pred <- data[(M + i), ]
-    df.est <- data[1 : (M + i - 1), ]
-    results[i] <- predict(lm(f, data = df.est), newdata = df.pred)
+    pred <- data[(M + i), ]
+    est <- data[i : (M + i - 1), ]
+    results[i] <- predict(lm(spec, data = est), newdata = pred)
   }
   results
 }
 
-test <- predict1(y ~ v1 + v2 + v3, nfr, 365)
-test <- predict(lm(y ~ v1 + v2 + v3, 
-                   data = nfr[1 : 365, ]),
-                   newdata = nfr[366, ])
-
-### HAR Models Construction ###
-# Number of rows in ntable matrix
-L <- nrow(ntable)
-
-# HAR different time windows comparison
+# Number of days for the initial model estimation
+M <- 365 * 2
+# Data frame for RMSE and MAE of the models
+fcix <- data.frame()
+# Auxiliary sequence for combination of models' time windows
 cols <- 2:28
-crame <- data.frame()
 
-# Loop to fill data frame with Rsq and BIC for different HAR models
+#   Loop for model estimation, forecasting, computation of RMSE and MAE, 
+# and filling the data frame 
 for (i in 2 : 27){
   for (j in cols[i] : 28){
-    mai <- unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean))
-    maj <- unlist(lapply(lapply(j : L, function (t) {return(ntable[(t - (j - 1)) : t, RV])}), mean))
-    
-    mai <- sqrt(mai)
-    maj <- sqrt(maj)
-    
+    # Short moving average
+    mai <- sqrt(unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean)))
+    # Long moving average
+    maj <- sqrt(unlist(lapply(lapply(j : L, function (t) {return(ntable[(t - (j - 1)) : t, RV])}), mean)))
+    # Length of short and long
     Li <- length(mai)
     Lj <- length(maj)
+    # New data frame with only the data that is needed for the model estimation
+    nfr <- as.data.frame(cbind(y = sqrt(ntable[(j + 1) : L, RV]),
+                               d1 = sqrt(ntable[j : (L - 1), RV]),
+                               mas = mai[(j - i + 1) : (Li - 1)],
+                               mal = maj[1 : (Lj - 1)]))
+    # Forecast
+    fcast <- predict1(y ~ d1 + mas + mal, nfr, M)
     
-    # HAR model
-    model <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
-                  mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)])
-    
-    # HAR model with days of the week factor
-    model_d <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
-                  mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)] + ntable[(j + 1) : L, dow])
-    
-    # HAR model with working days dummy
-    model_w <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
-                    mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)] + ntable[(j + 1) : L, wd])
-    
-    # Fill data frame
-    crame[(nrow(crame) + 1), 1] <- paste0('(', i, ', ', j, ')')
-    crame[nrow(crame), 2] <- summary(model)$r.squared
-    crame[nrow(crame), 3] <- BIC(model)
-    crame[nrow(crame), 4] <- summary(model_d)$r.squared
-    crame[nrow(crame), 5] <- BIC(model_d)
-    crame[nrow(crame), 6] <- summary(model_w)$r.squared
-    crame[nrow(crame), 7] <- BIC(model_w)
-    
+    # Filling the data frame with specification, RMSE and MAE
+    fcix[nrow(fcix) + 1, 'Spec'] <- paste0('(', i, ', ', j, ')')
+    fcix[nrow(fcix), 'RMSE'] <- sqrt(mean((fcast - sqrt(ntable[(M + 1 + j) : L, RV]))^2))
+    fcix[nrow(fcix), 'MAE'] <- mean(abs(fcast - sqrt(ntable[(M + 1 + j) : L, RV])))
   }
 }
 
-rm(model, model_d, model_w, maj, mai, Lj, Li, i, j, cols)
+rm(mai, maj, Li, Lj, nfr, i, j, fcast, cols)
 
-# Column names for HAR comparison data frame
-colnames(crame) <- c('Spec', 'HAR Rsq', 'HAR BIC', 'HAR-DOW Rsq', 'HAR-DOW BIC',
-                     'HAR-WD Rsq', 'HAR-WD BIC')
-View(crame)
+# Save data frame
+save(fcix, file = paste0(path, 'fcix_', M, '_', coin, f, '.RData'))
+openxlsx::write.xlsx(fcix, file = paste0(path, 'fcix_', M, '_', coin, f, '.xlsx'))
 
-save(crame, file = paste0(path, 'crame_', coin, f, '.RData'))
-openxlsx::write.xlsx(crame, file = paste0(path, 'crame_', coin, f, '.xlsx'))
-
-rm(crame)
+rm(M, fcix)
 
 ### Specific HAR Construction ###
 # Time windows do be used
@@ -624,6 +606,63 @@ Box.test(residuals(HAR), type = 'Ljung-Box', lag = 5)
 
 # Breusch-Pagan test (H0: homoskedasticity)
 lmtest::bptest(HAR)
+
+
+
+
+
+### HAR Model Selection by BIC ###
+# HAR different time windows comparison
+cols <- 2:28
+crame <- data.frame()
+
+# Loop to fill data frame with Rsq and BIC for different HAR models
+for (i in 2 : 27){
+  for (j in cols[i] : 28){
+    mai <- unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean))
+    maj <- unlist(lapply(lapply(j : L, function (t) {return(ntable[(t - (j - 1)) : t, RV])}), mean))
+    
+    mai <- sqrt(mai)
+    maj <- sqrt(maj)
+    
+    Li <- length(mai)
+    Lj <- length(maj)
+    
+    # HAR model
+    model <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
+                  mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)])
+    
+    # HAR model with days of the week factor
+    model_d <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
+                    mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)] + ntable[(j + 1) : L, dow])
+    
+    # HAR model with working days dummy
+    model_w <- lm(sqrt(ntable[(j + 1) : L, RV]) ~ sqrt(ntable[j : (L - 1), RV]) + 
+                    mai[(j - i + 1) : (Li - 1)] + maj[1 : (Lj - 1)] + ntable[(j + 1) : L, wd])
+    
+    # Fill data frame
+    crame[(nrow(crame) + 1), 1] <- paste0('(', i, ', ', j, ')')
+    crame[nrow(crame), 2] <- summary(model)$r.squared
+    crame[nrow(crame), 3] <- BIC(model)
+    crame[nrow(crame), 4] <- summary(model_d)$r.squared
+    crame[nrow(crame), 5] <- BIC(model_d)
+    crame[nrow(crame), 6] <- summary(model_w)$r.squared
+    crame[nrow(crame), 7] <- BIC(model_w)
+    
+  }
+}
+
+rm(model, model_d, model_w, maj, mai, Lj, Li, i, j, cols)
+
+# Column names for HAR comparison data frame
+colnames(crame) <- c('Spec', 'HAR Rsq', 'HAR BIC', 'HAR-DOW Rsq', 'HAR-DOW BIC',
+                     'HAR-WD Rsq', 'HAR-WD BIC')
+View(crame)
+
+save(crame, file = paste0(path, 'crame_', coin, f, '.RData'))
+openxlsx::write.xlsx(crame, file = paste0(path, 'crame_', coin, f, '.xlsx'))
+
+rm(crame)
 
 
 
