@@ -418,7 +418,7 @@ rm(M, fcix, cols)
 ### Specific HAR Construction ###
 # Time windows do be used
 short <- 4
-long <- 33
+long <- 32
 
 # Moving averages of RVOL
 rvols <- sqrt(unlist(lapply(lapply(short : L, function(t){
