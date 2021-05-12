@@ -378,12 +378,12 @@ M <- 365 * 2
 # Data frame for RMSE and MAE of the models
 fcix <- data.frame()
 # Auxiliary sequence for combination of models' time windows
-cols <- 2:28
+cols <- 2:40
 
 #   Loop for model estimation, forecasting, computation of RMSE and MAE, 
 # and filling the data frame 
-for (i in 2 : 27){
-  for (j in cols[i] : 28){
+for (i in 2 : (tail(cols, 1) - 1)){
+  for (j in cols[i] : (tail(cols, 1))){
     # Short moving average
     mai <- sqrt(unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean)))
     # Long moving average
@@ -395,7 +395,8 @@ for (i in 2 : 27){
     nfr <- as.data.frame(cbind(y = sqrt(ntable[(j + 1) : L, RV]),
                                d1 = sqrt(ntable[j : (L - 1), RV]),
                                mas = mai[(j - i + 1) : (Li - 1)],
-                               mal = maj[1 : (Lj - 1)]))
+                               mal = maj[1 : (Lj - 1)]),
+                               wd = ntable[(j + 1) : L, wd])
     # Forecast
     fcast <- predict1(y ~ d1 + mas + mal, nfr, M)
     
@@ -409,15 +410,15 @@ for (i in 2 : 27){
 rm(mai, maj, Li, Lj, nfr, i, j, fcast, cols)
 
 # Save data frame
-save(fcix, file = paste0(path, 'fcix_', M, '_', coin, f, '.RData'))
-openxlsx::write.xlsx(fcix, file = paste0(path, 'fcix_', M, '_', coin, f, '.xlsx'))
+save(fcix, file = paste0(path, 'fcix35_', M, '_', coin, f, '.RData'))
+openxlsx::write.xlsx(fcix, file = paste0(path, 'fcix35_', M, '_', coin, f, '.xlsx'))
 
 rm(M, fcix)
 
 ### Specific HAR Construction ###
 # Time windows do be used
-short <- 5
-long <- 15
+short <- 4
+long <- 33
 
 # Moving averages of RVOL
 rvols <- sqrt(unlist(lapply(lapply(short : L, function(t){
