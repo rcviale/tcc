@@ -407,13 +407,13 @@ for (i in 2 : (tail(cols, 1) - 1)){
   }
 }
 
-rm(mai, maj, Li, Lj, nfr, i, j, fcast, cols)
+rm(mai, maj, Li, Lj, nfr, i, j, fcast)
 
 # Save data frame
-save(fcix, file = paste0(path, 'fcix35_', M, '_', coin, f, '.RData'))
-openxlsx::write.xlsx(fcix, file = paste0(path, 'fcix35_', M, '_', coin, f, '.xlsx'))
+save(fcix, file = paste0(path, 'fcix', tail(cols, 1), '_', M, '_', coin, f, '.RData'))
+openxlsx::write.xlsx(fcix, file = paste0(path, 'fcix', tail(cols, 1), '_', M, '_', coin, f, '.xlsx'))
 
-rm(M, fcix)
+rm(M, fcix, cols)
 
 ### Specific HAR Construction ###
 # Time windows do be used
