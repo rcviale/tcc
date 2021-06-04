@@ -373,47 +373,67 @@ predict1 <- function(spec, data, M){
   results
 }
 
+predict1(y ~ ma1 + ma2 + ma3, nfr, M)
+
+# Function for 7-step ahead forecast
+predict7 <- function(spec, data, M){
+  P <- nrow(data) - M
+  results <- rep(0, P)
+  for (i in 1 : P) {
+    pred <- data[(M + i), ]
+    est <- data[i : (M + i - 1), ]
+    results[i] <- predict(lm(spec, data = est), newdata = pred)
+  }
+  results
+}
+
 # Number of days for the initial model estimation
 M <- 365 * 2
-# Data frame for RMSE and MAE of the models
-fcix <- data.frame()
-# Auxiliary sequence for combination of models' time windows
-cols <- 2:40
+# Data frame with all combinations of lags
+fcix <- as.data.frame(t(combn(1:28, 3)))
+# Data frame to input RMSE and MAE
+feix <- data.frame()
 
 #   Loop for model estimation, forecasting, computation of RMSE and MAE, 
 # and filling the data frame 
-for (i in 2 : (tail(cols, 1) - 1)){
-  for (j in cols[i] : (tail(cols, 1))){
-    # Short moving average
-    mai <- sqrt(unlist(lapply(lapply(i : L, function(t){return(ntable[(t - (i - 1)) : t, RV])}), mean)))
-    # Long moving average
-    maj <- sqrt(unlist(lapply(lapply(j : L, function (t) {return(ntable[(t - (j - 1)) : t, RV])}), mean)))
-    # Length of short and long
-    Li <- length(mai)
-    Lj <- length(maj)
-    # New data frame with only the data that is needed for the model estimation
-    nfr <- as.data.frame(cbind(y = sqrt(ntable[(j + 1) : L, RV]),
-                               d1 = sqrt(ntable[j : (L - 1), RV]),
-                               mas = mai[(j - i + 1) : (Li - 1)],
-                               mal = maj[1 : (Lj - 1)]),
-                               wd = ntable[(j + 1) : L, wd])
-    # Forecast
-    fcast <- predict1(y ~ d1 + mas + mal, nfr, M)
-    
-    # Filling the data frame with specification, RMSE and MAE
-    fcix[nrow(fcix) + 1, 'Spec'] <- paste0('(', i, ', ', j, ')')
-    fcix[nrow(fcix), 'RMSE'] <- sqrt(mean((fcast - sqrt(ntable[(M + 1 + j) : L, RV]))^2))
-    fcix[nrow(fcix), 'MAE'] <- mean(abs(fcast - sqrt(ntable[(M + 1 + j) : L, RV])))
-  }
+for (i in 1 : nrow(fcix)){
+  # First lag
+  ma1 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 1] - 1)) : t, RV])}), mean)))
+  # Second lag
+  #ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 2] : L, 
+  #                          function(t){return(ma1[(t - (fcix[i, 2] - 1)) : t])}), mean)))
+  ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 2] - 1)) : t, RV])}), mean)))
+  # Third lag
+  ma3 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 3] - 1)) : t, RV])}), mean)))
+  # Length of each lag vector
+  Lma <- length(ma1)
+#  L2 <- length(ma2)
+ # L3 <- length(ma3)
+  # New data frame with only the data that is needed for the model estimation
+  nfr <- as.data.frame(cbind(y = sqrt(ntable[fcix[i, 3] : L, RV]),
+                             ma1 = ma1[1 : Lma],
+                             ma2 = ma2[1 : Lma],
+                             ma3 = ma3[1 : Lma]))
+                       #wd = ntable[fcix[i, 3] : L, wd]))
+  # Forecast
+  fcast <- predict1(y ~ ma1 + ma2 + ma3, nfr, M)
+  
+  # Filling the data frame with specification, RMSE and MAE
+  feix[nrow(feix) + 1, 'Spec'] <- paste0('(', fcix[i, 1], ', ', fcix[i, 2], ', ', fcix[i, 3], ')')
+  feix[nrow(feix), 'RMSE'] <- sqrt(mean((fcast - sqrt(ntable[(M + fcix[i, 3]) : L, RV]))^2))
+  feix[nrow(feix), 'MAE'] <- mean(abs(fcast - sqrt(ntable[(M + fcix[i, 3]) : L, RV])))
 }
 
-rm(mai, maj, Li, Lj, nfr, i, j, fcast)
+rm(fcix, i, fcast, nfr, ma1, ma2, ma3, Lma, predict1)
 
 # Save data frame
-save(fcix, file = paste0(path, 'fcix', tail(cols, 1), '_', M, '_', coin, f, '.RData'))
-openxlsx::write.xlsx(fcix, file = paste0(path, 'fcix', tail(cols, 1), '_', M, '_', coin, f, '.xlsx'))
+save(feix, file = paste0(path, 'fcix', tail(cols, 1), '_', M, '_', coin, f, '.RData'))
+openxlsx::write.xlsx(feix, file = paste0(path, 'feix28', '_', M, '_', coin, f, '.xlsx'))
 
-rm(M, fcix, cols)
+rm(M, feix)
 
 ### Specific HAR Construction ###
 # Time windows do be used
