@@ -361,22 +361,10 @@ box()
 # Number of rows in ntable matrix
 L <- nrow(ntable)
 
+
+
 # Function for 1-step ahead forecast
 predict1 <- function(spec, data, M){
-  P <- nrow(data) - M
-  results <- rep(0, P)
-  for (i in 1 : P) {
-    pred <- data[(M + i), ]
-    est <- data[i : (M + i - 1), ]
-    results[i] <- predict(lm(spec, data = est), newdata = pred)
-  }
-  results
-}
-
-predict1(y ~ ma1 + ma2 + ma3, nfr, M)
-
-# Function for 7-step ahead forecast
-predict7 <- function(spec, data, M){
   P <- nrow(data) - M
   results <- rep(0, P)
   for (i in 1 : P) {
@@ -396,7 +384,7 @@ feix <- data.frame()
 
 #   Loop for model estimation, forecasting, computation of RMSE and MAE, 
 # and filling the data frame 
-for (i in 1 : nrow(fcix)){
+for (i in 1 : 1){
   # First lag
   ma1 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
                                    function(t){return(ntable[(t - (fcix[i, 1] - 1)) : t, RV])}), mean)))
@@ -431,14 +419,205 @@ rm(fcix, i, fcast, nfr, ma1, ma2, ma3, Lma, predict1)
 
 # Save data frame
 save(feix, file = paste0(path, 'fcix', tail(cols, 1), '_', M, '_', coin, f, '.RData'))
-openxlsx::write.xlsx(feix, file = paste0(path, 'feix28', '_', M, '_', coin, f, '.xlsx'))
+openxlsx::write.xlsx(feix, file = paste0(path, 'fcast_errors_upto_28_1-day_', M, '_', coin, f, '.xlsx'))
 
-rm(M, feix)
+rm(feix)
+
+
+
+# Function for 7-step ahead forecast
+predict7 <- function(spec, data, M){
+  P <- nrow(data) - M - 6
+  results <- rep(0, P)
+  for (i in 1 : P) {
+    pred <- data[(M + i), ]
+    est <- data[i : (M + i - 1), ]
+    results[i] <- sum(residuals(forecast::forecast(lm(spec, data = est), newdata = pred, h = 7)))
+  }
+  results
+}
+
+# Testing 7-step-ahead forecast for (1, 7, 28) and (1, 7, 30) models
+fcix <- data.frame()
+fcix[nrow(fcix) + 2,] <- NA
+fcix[, 1] <- c(1, 1)
+fcix[, 2] <- c(7, 7)
+fcix[, 3] <- c(28, 30)
+# Data frame to input RMSE and MAE
+feix <- data.frame()
+
+#   Loop for model estimation, forecasting, computation of RMSE and MAE, 
+# and filling the data frame 
+for (i in 1 : nrow(fcix)){
+  # First lag
+  ma1 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 1] - 1)) : t, RV])}), mean)))
+  # Second lag
+  #ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 2] : L, 
+  #                          function(t){return(ma1[(t - (fcix[i, 2] - 1)) : t])}), mean)))
+  ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 2] - 1)) : t, RV])}), mean)))
+  # Third lag
+  ma3 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 3] - 1)) : t, RV])}), mean)))
+  # Length of each lag vector
+  Lma <- length(ma1)
+  #  L2 <- length(ma2)
+  # L3 <- length(ma3)
+  # New data frame with only the data that is needed for the model estimation
+  nfr <- as.data.frame(cbind(y = sqrt(ntable[fcix[i, 3] : L, RV]),
+                             ma1 = ma1[1 : Lma],
+                             ma2 = ma2[1 : Lma],
+                             ma3 = ma3[1 : Lma]))
+  #wd = ntable[fcix[i, 3] : L, wd]))
+  # Forecast
+  fcast <- predict7(y ~ ma1 + ma2 + ma3, nfr, M)
+  
+  # Filling the data frame with specification, RMSE and MAE
+  feix[nrow(feix) + 1, 'Spec'] <- paste0('(', fcix[i, 1], ', ', fcix[i, 2], ', ', fcix[i, 3], ')')
+  feix[nrow(feix), 'RMSE'] <- sqrt(mean((fcast - sqrt(ntable[(M + fcix[i, 3]) : (L - 6), RV]))^2))
+  feix[nrow(feix), 'MAE'] <- mean(abs(fcast - sqrt(ntable[(M + fcix[i, 3]) : (L - 6), RV])))
+}
+
+rm(fcix, i, fcast, nfr, ma1, ma2, ma3, Lma, predict7)
+
+# Save data frame
+openxlsx::write.xlsx(feix, file = paste0(path, 'fcast_errors_7-day_', M, '_', coin, f, '.xlsx'))
+
+rm(feix)
+
+
+
+
+# Function for 28-step ahead forecast
+predict28 <- function(spec, data, M){
+  P <- nrow(data) - M - 27
+  results <- rep(0, P)
+  for (i in 1 : P) {
+    pred <- data[(M + i), ]
+    est <- data[i : (M + i - 1), ]
+    results[i] <- sum(residuals(forecast::forecast(lm(spec, data = est), newdata = pred, h = 28)))
+  }
+  results
+}
+
+# Testing 28-step-ahead forecast for (1, 7, 28) and (1, 7, 30) models
+fcix <- data.frame()
+fcix[nrow(fcix) + 2,] <- NA
+fcix[, 1] <- c(1, 1)
+fcix[, 2] <- c(7, 7)
+fcix[, 3] <- c(28, 30)
+# Data frame to input RMSE and MAE
+feix <- data.frame()
+
+#   Loop for model estimation, forecasting, computation of RMSE and MAE, 
+# and filling the data frame 
+for (i in 1 : nrow(fcix)){
+  # First lag
+  ma1 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 1] - 1)) : t, RV])}), mean)))
+  # Second lag
+  #ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 2] : L, 
+  #                          function(t){return(ma1[(t - (fcix[i, 2] - 1)) : t])}), mean)))
+  ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 2] - 1)) : t, RV])}), mean)))
+  # Third lag
+  ma3 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 3] - 1)) : t, RV])}), mean)))
+  # Length of each lag vector
+  Lma <- length(ma1)
+  #  L2 <- length(ma2)
+  # L3 <- length(ma3)
+  # New data frame with only the data that is needed for the model estimation
+  nfr <- as.data.frame(cbind(y = sqrt(ntable[fcix[i, 3] : L, RV]),
+                             ma1 = ma1[1 : Lma],
+                             ma2 = ma2[1 : Lma],
+                             ma3 = ma3[1 : Lma]))
+  #wd = ntable[fcix[i, 3] : L, wd]))
+  # Forecast
+  fcast <- predict28(y ~ ma1 + ma2 + ma3, nfr, M)
+  
+  # Filling the data frame with specification, RMSE and MAE
+  feix[nrow(feix) + 1, 'Spec'] <- paste0('(', fcix[i, 1], ', ', fcix[i, 2], ', ', fcix[i, 3], ')')
+  feix[nrow(feix), 'RMSE'] <- sqrt(mean((fcast - sqrt(ntable[(M + fcix[i, 3]) : (L - 27), RV]))^2))
+  feix[nrow(feix), 'MAE'] <- mean(abs(fcast - sqrt(ntable[(M + fcix[i, 3]) : (L - 27), RV])))
+}
+
+rm(fcix, i, fcast, nfr, ma1, ma2, ma3, Lma, predict28)
+
+# Save data frame
+openxlsx::write.xlsx(feix, file = paste0(path, 'fcast_errors_28-day_', M, '_', coin, f, '.xlsx'))
+
+rm(feix)
+
+
+
+# Function for 28-step ahead forecast
+predict30 <- function(spec, data, M){
+  P <- nrow(data) - M - 29
+  results <- rep(0, P)
+  for (i in 1 : P) {
+    pred <- data[(M + i), ]
+    est <- data[i : (M + i - 1), ]
+    results[i] <- sum(residuals(forecast::forecast(lm(spec, data = est), newdata = pred, h = 30)))
+  }
+  results
+}
+
+# Testing 28-step-ahead forecast for (1, 7, 28) and (1, 7, 30) models
+fcix <- data.frame()
+fcix[nrow(fcix) + 2,] <- NA
+fcix[, 1] <- c(1, 1)
+fcix[, 2] <- c(7, 7)
+fcix[, 3] <- c(28, 30)
+# Data frame to input RMSE and MAE
+feix <- data.frame()
+
+#   Loop for model estimation, forecasting, computation of RMSE and MAE, 
+# and filling the data frame 
+for (i in 1 : nrow(fcix)){
+  # First lag
+  ma1 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 1] - 1)) : t, RV])}), mean)))
+  # Second lag
+  #ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 2] : L, 
+  #                          function(t){return(ma1[(t - (fcix[i, 2] - 1)) : t])}), mean)))
+  ma2 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 2] - 1)) : t, RV])}), mean)))
+  # Third lag
+  ma3 <- sqrt(unlist(lapply(lapply(fcix[i, 3] : L, 
+                                   function(t){return(ntable[(t - (fcix[i, 3] - 1)) : t, RV])}), mean)))
+  # Length of each lag vector
+  Lma <- length(ma1)
+  #  L2 <- length(ma2)
+  # L3 <- length(ma3)
+  # New data frame with only the data that is needed for the model estimation
+  nfr <- as.data.frame(cbind(y = sqrt(ntable[fcix[i, 3] : L, RV]),
+                             ma1 = ma1[1 : Lma],
+                             ma2 = ma2[1 : Lma],
+                             ma3 = ma3[1 : Lma]))
+  #wd = ntable[fcix[i, 3] : L, wd]))
+  # Forecast
+  fcast <- predict30(y ~ ma1 + ma2 + ma3, nfr, M)
+  
+  # Filling the data frame with specification, RMSE and MAE
+  feix[nrow(feix) + 1, 'Spec'] <- paste0('(', fcix[i, 1], ', ', fcix[i, 2], ', ', fcix[i, 3], ')')
+  feix[nrow(feix), 'RMSE'] <- sqrt(mean((fcast - sqrt(ntable[(M + fcix[i, 3]) : (L - 29), RV]))^2))
+  feix[nrow(feix), 'MAE'] <- mean(abs(fcast - sqrt(ntable[(M + fcix[i, 3]) : (L - 29), RV])))
+}
+
+rm(fcix, i, fcast, nfr, ma1, ma2, ma3, Lma, predict30)
+
+# Save data frame
+openxlsx::write.xlsx(feix, file = paste0(path, 'fcast_errors_30-day_', M, '_', coin, f, '.xlsx'))
+
+
+
 
 ### Specific HAR Construction ###
 # Time windows do be used
-short <- 4
-long <- 32
+short <- 7
+long <- 28
 
 # Moving averages of RVOL
 rvols <- sqrt(unlist(lapply(lapply(short : L, function(t){
