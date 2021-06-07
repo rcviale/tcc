@@ -611,7 +611,11 @@ rm(fcix, i, fcast, nfr, ma1, ma2, ma3, Lma, predict30)
 # Save data frame
 openxlsx::write.xlsx(feix, file = paste0(path, 'fcast_errors_30-day_', M, '_', coin, f, '.xlsx'))
 
+<<<<<<< HEAD
 rm(feix, M)
+=======
+
+>>>>>>> c2eaaacdec5f9790d064ad681f413caa3503fe05
 
 
 ### Specific HAR Construction ###
