@@ -4,19 +4,62 @@ library(jsonlite)
 rm(list = ls())
 
 base <- "https://api.binance.com/"
-coin <- 'ETH'
-ticker <- paste0(coin, 'USDT')
-inidate <- '2017-09-01'
+coins <- c('BTC', 'ETH', 'LTC', 'XRP', 'COMP', 'BNB', 'ADA', 'DOGE', 'DOT', 'PNT')
+tickers <- paste0(coins, 'USDT')
+inidate <- '2017-08-01'
 enddate <- '2021-03-31'
 
+# Months
+mths <- seq(as.Date(inidate), as.Date(enddate), by = "months")
+ini_mths <- matrix(nrow = length(mths))
+end_mths <- matrix(nrow = length(mths))
+
+for (i in 1 : length(mths)){
+  ini_mths[i, 1] <- paste0(as.numeric(as.POSIXct(paste0(mths[i], ' 00:00:00'), tz = 'UTC'))/10, '0000')
+  end_mths[i, 1] <- paste0(as.numeric(as.POSIXct(paste0(mths[i], ' 11:59:00'), tz = 'UTC'))/10, '0000')
+}
+
+rm(mths)
+
+ini_crypto <- data.frame()
+
+for (j in 1 : length(tickers)){
+  for (i in 2 : length(ini_mths)){
+    binraw <- GET(url = base, path = '/api/v3/klines', 
+                  query = list(
+                    symbol = tickers[j],
+                    interval = '1m',
+                    startTime = ini_mths[i],
+                    endTime = end_mths[i],
+                    limit = as.integer(1000)
+                  ))
+    binix <- fromJSON(content(binraw, "text"), flatten = TRUE)
+    Sys.sleep(0.3)
+    if (length(binix) == 0){
+      next
+    } else{
+      print(anytime::anytime(as.numeric(ini_mths[i])/1000))
+      ini_crypto[nrow(ini_crypto) + 1, 'Crypto'] <- tickers[j]
+      ini_crypto[nrow(ini_crypto), 'Start Date'] <- anytime::anytime(as.numeric(ini_mths[i])/1000)
+      break
+    }
+  }
+}
+
+path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+openxlsx::write.xlsx(ini_crypto, file = paste0(path, 'series_initial_dates.xlsx'))
+
+rm(binix, binraw, end_mths, ini_mths, ini_crypto, enddate, inidate, i, j, tickers, coins)
+
 # Days x time ranges
+coin <- 'BTC'
+ticker <- paste0(coin, 'USDT')
 days <- seq(as.Date(inidate), as.Date(enddate), by = "days")
 
 rm(inidate, enddate)
 
 f <- 2
 N <- f * length(days)
-
 
 # Times for starting and ending ranges
 times_start <- c('00:00:00', '12:00:00')
@@ -109,6 +152,9 @@ path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão
 save(binix, file = paste0(path, 'binix_', coin, '.RData'))
 
 rm(list = ls())
+
+
+
 
 
 
