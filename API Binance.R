@@ -4,7 +4,8 @@ library(jsonlite)
 rm(list = ls())
 
 base <- "https://api.binance.com/"
-coins <- c('BTC', 'ETH', 'LTC', 'XRP', 'COMP', 'BNB', 'ADA', 'DOGE', 'DOT', 'PNT')
+coins <- c('BTC', 'ETH', 'LTC', 'XRP', 'COMP', 'BNB', 'ADA', 'DOGE', 'DOT', 'PNT',
+           'LINK', 'BCH', 'UNI', 'XLM', 'FIL', 'EOS', 'SOL', 'MATIC')
 tickers <- paste0(coins, 'USDT')
 inidate <- '2017-08-01'
 enddate <- '2021-03-31'
@@ -14,6 +15,7 @@ mths <- seq(as.Date(inidate), as.Date(enddate), by = "months")
 ini_mths <- matrix(nrow = length(mths))
 end_mths <- matrix(nrow = length(mths))
 
+# Loop to create one date in each month of the time period
 for (i in 1 : length(mths)){
   ini_mths[i, 1] <- paste0(as.numeric(as.POSIXct(paste0(mths[i], ' 00:00:00'), tz = 'UTC'))/10, '0000')
   end_mths[i, 1] <- paste0(as.numeric(as.POSIXct(paste0(mths[i], ' 11:59:00'), tz = 'UTC'))/10, '0000')
@@ -23,6 +25,7 @@ rm(mths)
 
 ini_crypto <- data.frame()
 
+# Loop to check initial date of each crypto, creating a data frame with the info
 for (j in 1 : length(tickers)){
   for (i in 2 : length(ini_mths)){
     binraw <- GET(url = base, path = '/api/v3/klines', 
