@@ -1,6 +1,7 @@
 ########## Starting point I (from raw imported matrix data) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-coin <- 'BTC'
+ini_crypto <- readxl::read_excel(paste0(path, 'series_initial_dates.xlsx'))
+coins <- as.vector(ini_crypto[, 5])
 
 # Load data in matrix form
 load(paste0(path, 'binix_', coin, '.RData'))
