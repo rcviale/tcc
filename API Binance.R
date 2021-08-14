@@ -42,8 +42,9 @@ for (j in 1 : length(tickers)){
       next
     } else{
       print(anytime::anytime(as.numeric(ini_mths[i])/1000))
-      ini_crypto[nrow(ini_crypto) + 1, 'Crypto'] <- tickers[j]
-      ini_crypto[nrow(ini_crypto), 'Start Date'] <- anytime::anytime(as.numeric(ini_mths[i])/1000)
+      ini_crypto[nrow(ini_crypto) + 1, 'market'] <- tickers[j]
+      ini_crypto[nrow(ini_crypto), 'coin'] <- coins[j]
+      ini_crypto[nrow(ini_crypto), 'start date'] <- anytime::anytime(as.numeric(ini_mths[i])/1000)
       break
     }
   }
@@ -58,14 +59,11 @@ rm(binix, binraw, end_mths, ini_mths, ini_crypto, i, j, tickers, coins)
 ##### Start downloading multiple series #####
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 base <- "https://api.binance.com/"
-coins <- c('BTC', 'ETH', 'LTC', 'XRP', 'COMP', 'BNB', 'ADA', 'DOGE', 'DOT', 'PNT',
-           'LINK', 'BCH', 'UNI', 'XLM', 'FIL', 'EOS', 'SOL', 'MATIC')
-tickers <- paste0(coins, 'USDT')
 inidate <- '2017-08-01'
 enddate <- '2021-07-31'
 
 # Open initial dates
-ini_crypto <- read_excel(paste0(path, 'series_initial_dates.xlsx'))
+ini_crypto <- readxl::read_excel(paste0(path, 'series_initial_dates.xlsx'))
 
 # Separate date from time
 ini_crypto <- as.data.frame(tidyr::separate(ini_crypto, col = 'Start Date', into = c('date', 'time'), sep = ' '))
