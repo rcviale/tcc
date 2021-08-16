@@ -56,6 +56,15 @@ openxlsx::write.xlsx(ini_crypto, file = paste0(path, 'series_initial_dates.xlsx'
 rm(binix, binraw, end_mths, ini_mths, ini_crypto, i, j, tickers, coins)
 
 
+
+
+
+
+
+
+
+
+
 ##### Start downloading multiple series #####
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
 base <- "https://api.binance.com/"
@@ -63,17 +72,14 @@ inidate <- '2017-08-01'
 enddate <- '2021-07-31'
 
 # Open initial dates
-ini_crypto <- readxl::read_excel(paste0(path, 'series_initial_dates.xlsx'))
-
-# Separate date from time
-ini_crypto <- as.data.frame(tidyr::separate(ini_crypto, col = 'Start Date', into = c('date', 'time'), sep = ' '))
+ini_crypto <- as.data.frame(readxl::read_excel(paste0(path, 'series_initial_dates.xlsx')))
 
 # Create times for starting and ending ranges
 times_start <- c('00:00:00', '12:00:00')
 times_end <- c('11:59:00', '23:59:00')
 
 # Loop through every series
-for (z in 3 : nrow(ini_crypto)){ # 
+for (z in 1 : nrow(ini_crypto)){
   # Days range
   days <- seq(as.Date(ini_crypto[z, 2]), as.Date(enddate), by = "days")
   # Requests per day and total number of requests
@@ -83,13 +89,21 @@ for (z in 3 : nrow(ini_crypto)){ #
   # Matrix with all start and end dates in ISO8601 format
   start <- matrix(ncol = f, nrow = (N/f))
   end <- matrix(ncol = f, nrow = (N/f))
+  
   # Loop creating all combinations of dates and times
   for (i in 1 : length(days)){
     for (j in 1 : f){
-      start[i, j] <- paste0(as.numeric(as.POSIXct(paste0(days[i], ' ', times_start[j]), tz = 'UTC'))/10, '0000')
-      end[i, j] <- paste0(as.numeric(as.POSIXct(paste0(days[i], ' ', times_end[j]), tz = 'UTC'))/10, '0000')
+      start[i, j] <- sub('\\.', '', paste0(as.numeric(as.POSIXct(paste0(days[i], ' ', 
+                                                         times_start[j]), tz = 'UTC'))/100, '00000'))
+      end[i, j] <- sub('\\.', '', paste0(as.numeric(as.POSIXct(paste0(days[i], ' ', 
+                                                       times_end[j]), tz = 'UTC'))/10, '0000'))
     }
   }
+  
+  print(length(which(nchar(start[, 1]) != 13)))
+  print(length(which(nchar(start[, 2]) != 13)))
+  print(length(which(nchar(end[, 1]) != 13)))
+  print(length(which(nchar(end[, 2]) != 13)))
   
   # First day and time range
   binraw <- GET(url = base, path = '/api/v3/klines', 
@@ -152,11 +166,8 @@ for (z in 3 : nrow(ini_crypto)){ #
   # Save matrix
   path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
   save(binix, file = paste0(path, 'binix_', ini_crypto[z, 5], '.RData'))
-  # check for duplicates, number of obs and number of days
-  substr(ini_crypto[3, 1], 1, 3)
-  #anyDuplicated(binix)
-  nrow(binix)
-  nrow(binix) / 1440
+
+  print(ini_crypto[z, 5])
 }
 
 rm(list = ls())
@@ -171,6 +182,7 @@ rm(list = ls())
 
 
 # Days x time ranges
+base <- "https://api.binance.com/"
 coin <- 'BTC'
 ticker <- paste0(coin, 'USDT')
 days <- seq(as.Date(inidate), as.Date(enddate), by = "days")
@@ -199,8 +211,8 @@ binraw <- GET(url = base, path = '/api/v3/klines',
               query = list(
                 symbol = ticker,
                 interval = '1m',
-                startTime = start[1, 1],
-                endTime = end[1, 1],
+                startTime = '1619323140000',
+                endTime = '1619340420000',
                 limit = as.integer(1000)
               ))
 

@@ -1,13 +1,84 @@
 ########## Starting point I (from raw imported matrix data) ##########
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-ini_crypto <- readxl::read_excel(paste0(path, 'series_initial_dates.xlsx'))
-coins <- as.vector(ini_crypto[, 5])
+ini_crypto <- as.data.frame(readxl::read_excel(paste0(path, 'series_initial_dates.xlsx')))
+
+# Load first data matrix
+load(paste0(path, 'binix_', ini_crypto[1, 5], '.RData'))
+# Isolate time and closing price columns
+fbinix <- binix[, c('open_time', 'close')]
+colnames(fbinix) <- c('unix', ini_crypto[1, 5])
+
+# Convert open_time column to second-based UNIX time stamp and add 1 minute
+fbinix[, 1] <- anytime::anytime(fbinix[, 1] / 1000, asUTC = TRUE) + 60
+#a <- as.numeric(fbinix[, 1])
+
+for (z in 2 : nrow(ini_crypto)){
+  # Load second data matrix
+  load(paste0(path, 'binix_', ini_crypto[z, 5], '.RData'))
+  # Isolate time and closing price columns
+  binix <- binix[, c('open_time', 'close')]
+  # Rename close column 
+  colnames(binix) <- c('unix', ini_crypto[z, 5])
+  # Convert open_time column to second-based UNIX time stamp and add 1 minute
+  binix[, 1] <- anytime::anytime(binix[, 1] / 1000, asUTC = TRUE) + 60
+  #b <- as.numeric(binix[, 1])
+  
+  #uab <- length(unique(c(a, b)))
+  # Merge the two matrices
+  fbinix <- merge(fbinix, binix, by = 'unix', all = TRUE)
+  print(ini_crypto[z, 5])
+}
+
+binframe <- fbinix
+
+rm(fbinix, binix)
+
+# Order data frame by time stamp
+binframe <- binframe[order(binframe[, 1]), ]
+
+# Save the new frame with all the series
+save(binframe, file = paste0(path, 'binframe_all.RData'))
+
+
+load(paste0(path, 'binframe_all.RData'))
+
+# Compute date and close times in 'YYYY-MM-DD HH:MM:SS' format
+binframe[, 1] <- anytime::anytime(binframe[, 1], asUTC = TRUE)
+
+anyDuplicated(fbinix[, 1])
+
+# Separate date and time
+fbinix <- tidyr::separate(fbinix, col = unix, into = c('date', 'time'), sep = ' ')
+
+# Separate day, month and year
+binix <- tidyr::separate(binix, col = date, into = c("year", "month", "day"), sep = "-")
+
+# Separate hour and minute
+binix <- tidyr::separate(binix, col = time, into = c("hour", "minute"), sep = ":")
+
+# Complete implicitly missing observations
+binix <- tidyr::complete(binix, year, month, day, hour, minute)
+
+mv <- as.numeric(binix[, 1] / 1000)
+fmv <- as.data.frame(tidyr::full_seq(mv, 60))
+
+fmv[, 'close'] <- rep(NA, nrow(fmv))
+colnames(fmv) <- c('open_time', 'close')
+
+binix2 <- as.data.frame(binix)
+binix2 <- dplyr::left_join(fmv, binix2, copy = TRUE)
+
+# Loop through data matrices and combine closing prices
+for (z in 2 : nrow(ini_crypto)){
+  load(paste0(path, 'binix_', ini_crypto[z, 5], '.RData'))
+  
+}
+
+
+
 
 # Load data in matrix form
 load(paste0(path, 'binix_', coin, '.RData'))
-
-# Sort data
-binix <- binix[order(binix[, 1]), ]
 
 # Convert open_time column to second-based UNIX time stamp
 binix[, 1] <- binix[, 1] / 1000
