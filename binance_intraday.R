@@ -1,9 +1,10 @@
-########## Starting point I (from raw imported matrix data) ##########
-#path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+##### Import raw data matrix and unify all series #####
 ini_crypto <- (readxl::read_excel(paste0('series_initial_dates.xlsx')))
+
+# Deactivate scientific notation
 options(scipen = 10000)
 
-# Looping to change file names
+# Looping to change file names and save them as RDS
 for (z in 1 : nrow(ini_crypto)){
   # Load second data matrix
   load(paste0('Data/binix_', ini_crypto[z, 5], '.RData'))
@@ -22,230 +23,49 @@ files <- paste0('Data/Ess_', as.matrix(ini_crypto[, 5]), '.rds')
 
 upload <- map(files, readr::read_rds)
 
-all_data <- upload %>% reduce(full_join, by = 'open_time') %>% arrange(open_time)
+# Full join data, sort by open_time, separate date and time, and add dummies for day of the week and business day
+all_data <- upload %>% reduce(full_join, by = 'open_time') %>% arrange(open_time) %>% 
+  tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>% 
+  mutate(date = lubridate::as_date(date),
+         dow = lubridate::wday(date, week_start = 1),
+         wd = ifelse(dow == 6 || dow == 7, 0, 1))
 
+# Vector with timestamps' differences
+all_data$open_time %>% diff() -> a
+(which(a == max(a)))
+
+# Save RDS
 readr::write_rds(all_data, file = 'Data/all_data.rds')
 
 rm(upload, files)
 
-all_data$open_time %>% diff() -> a
-which(a != 60)[length(which(a != 60))]
+##### Unified closing prices #####
 
-# upload %>% 
-#   enframe() %>% 
-#   mutate(value = map_depth(.x = value, 
-#                            .depth = 1,
-#                            .f = ~ . %>% select(.$open_time) %>% lubridate::as_datetime(./1000)))
-# 
-# reduce(full_join, by = 'open_time') 
+# Load data set
+all_data <- readr::read_rds('Data/all_data.rds')
 
-teste <- upload %>%
-  bind_rows() %>% 
-  mutate(open_time = lubridate::as_datetime(open_time/1000)) %>% 
+# teste %>% 
+#   filter(open_time >= "2018-01-01", open_time <= "2018-01-2") %>% 
+#   tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>% 
+#   tidyr::separate(col = date, into = c("year", "month", "day"), sep = "-") %>% 
+#   tidyr::separate(col = time, into = c("hour", "minute"), sep = ":") %>% 
+#   tidyr::complete(year, month, day, hour, minute)
 
-teste %>% 
-  filter(open_time >= "2018-01-01", open_time <= "2018-01-2") %>% 
-  tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>% 
-  tidyr::separate(col = date, into = c("year", "month", "day"), sep = "-") %>% 
-  tidyr::separate(col = time, into = c("hour", "minute"), sep = ":") %>% 
-  tidyr::complete(year, month, day, hour, minute)
-
-
-
-
-
-# Load first data matrix
-load(paste0('Data/binix_', ini_crypto[4, 5], '.RData'))
-
-
-# Isolate time and closing price columns
-fbinix <- binix[, c('open_time', 'close')]
-colnames(fbinix) <- c('unix', ini_crypto[1, 5])
-
-# Convert open_time column to second-based UNIX time stamp and add 1 minute
-fbinix[, 1] <- anytime::anytime(fbinix[, 1] / 1000, asUTC = TRUE) + 60
-#a <- as.numeric(fbinix[, 1])
-
-
-for (z in 1 : nrow(ini_crypto)){
-  # Load second data matrix
-  load(paste0('Data/binix_', ini_crypto[z, 5], '.RData'))
-  # Insert coin column
-  binix %>% as_tibble() %>% mutate(coin = ini_crypto[z, 5]) %>% 
-    readr::write_rds(file = paste0('Data/', ini_crypto[z, 5], '.rds'))
-  # Rename close column 
-#  colnames(binix) <- c('unix', ini_crypto[z, 5])
-#  # Convert open_time column to second-based UNIX time stamp and add 1 minute
-#  binix[, 1] <- anytime::anytime(binix[, 1] / 1000, asUTC = TRUE) + 60
-  #b <- as.numeric(binix[, 1])
-  
-  #uab <- length(unique(c(a, b)))
-  # Merge the two matrices
-#  fbinix <- merge(fbinix, binix, by = 'unix', all = TRUE)
-#  print(ini_crypto[z, 5])
-}
-
-binframe <- fbinix
-
-rm(fbinix, binix)
-
-# Order data frame by time stamp
-binframe <- binframe[order(binframe[, 1]), ]
-
-# Save the new frame with all the series
-save(binframe, file = paste0(path, 'binframe_all.RData'))
-
-
-load(paste0(path, 'binframe_all.RData'))
-
-# Compute date and close times in 'YYYY-MM-DD HH:MM:SS' format
-binframe[, 1] <- anytime::anytime(binframe[, 1], asUTC = TRUE)
-
-anyDuplicated(fbinix[, 1])
-
-# Separate date and time
-fbinix <- tidyr::separate(fbinix, col = unix, into = c('date', 'time'), sep = ' ')
-
-# Separate day, month and year
-binix <- tidyr::separate(binix, col = date, into = c("year", "month", "day"), sep = "-")
-
-# Separate hour and minute
-binix <- tidyr::separate(binix, col = time, into = c("hour", "minute"), sep = ":")
-
-# Complete implicitly missing observations
-binix <- tidyr::complete(binix, year, month, day, hour, minute)
-
-mv <- as.numeric(binix[, 1] / 1000)
-fmv <- as.data.frame(tidyr::full_seq(mv, 60))
-
-fmv[, 'close'] <- rep(NA, nrow(fmv))
-colnames(fmv) <- c('open_time', 'close')
-
-binix2 <- as.data.frame(binix)
-binix2 <- dplyr::left_join(fmv, binix2, copy = TRUE)
-
-# Loop through data matrices and combine closing prices
-for (z in 2 : nrow(ini_crypto)){
-  load(paste0(path, 'binix_', ini_crypto[z, 5], '.RData'))
-  
-}
-
-
-
-
-# Load data in matrix form
-load(paste0(path, 'binix_', coin, '.RData'))
-
-# Convert open_time column to second-based UNIX time stamp
-binix[, 1] <- binix[, 1] / 1000
-
-# Convert to data.frame
-binframe <- as.data.frame(binix)
-
-rm(binix)
-
-# Compute date and close times in 'YYYY-MM-DD HH:MM:SS' format
-binframe[, 1] <- anytime::anytime(binframe[, 1], asUTC = TRUE)
-
-# Separate date and time
-binframe <- tidyr::separate(binframe, col = open_time, into = c('date', 'time'), sep = ' ')
-
-# Save initial and ending date
-inidate <- binframe[1, 1]
-enddate <- binframe[nrow(binframe), 1]
-
-# Separate day, month and year
-binframe <- tidyr::separate(binframe, col = date, into = c("year", "month", "day"), sep = "-")
-
-# Separate hour and minute
-binframe <- tidyr::separate(binframe, col = time, into = c("hour", "minute"), sep = ":")
-
-# Complete implicitly missing observations
-binframe <- tidyr::complete(binframe, year, month, day, hour, minute)
-
-# Recreate date column
-binframe[, 1] <- lubridate::make_date(
-  year = unlist(binframe[, 'year']),
-  month = unlist(binframe[, 'month']),
-  day = unlist(binframe[, 'day'])
-)
-
-# Recreate time column
-binframe[, 2] <- format(lubridate::make_datetime(
-  hour = as.numeric(unlist(binframe[, 'hour'])),
-  min = as.numeric(unlist(binframe[, 'minute'])),
-  sec = 00
-), format = '%H:%M:%S')
-
-# Delete unwanted columns
-binframe <- binframe[, c(1:2, 6:12)]
-
-# Eliminate first rows (before the data actually starts) and last rows (after the
-# data actually ends)
-binframe <- binframe[(which(binframe[, 1] == inidate)[1]) :
-                     (which(binframe[, 1] == as.character(as.Date(enddate)))[1440]), ]
-
-rm(inidate, enddate)
-
-# Convert back to data.frame 
-binframe <- as.data.frame(binframe)
-
-# Rename columns 
-colnames(binframe) <- c('date', 'time', colnames(binframe)[3 : ncol(binframe)])
-
-# Create a sequence with all the days that should exist in the data set
-length(seq(as.Date(inidate), as.Date(enddate), by = "days"))
-
-# Actual number of days in the data set
-nrow(binframe) / 1440
-
-# The complete function adds more rows than there should be (with NA date values)
-# because it creates rows with non-existing dates (i.e. 31/02)
-# Creating a vector with the row numbers that have NA dates
-del <- vector()
-del <- which(is.na(binframe[, 1]))
-
-# Delete the rows with NA dates
-binframe <- binframe[-del, ]
-
-nrow(binframe) / 1440
-
-rm(del)
-
-# Save the new data frame
-save(binframe, file = paste0(path, 'binframe_', coin, '.RData'))
-
-rm(list = ls())
-
-########## Starting point II (from data frame) ##########
-path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-coin <- 'BTC'
-
-# Load data
-load(paste0(path, 'binframe_', coin, '.RData'))
+# Convert do data frame
+all_data <- as.data.frame(all_data)
 
 # Load data.table package
 library(data.table)
 
-# Create factor variables for days of the week
-dow <- as.POSIXlt(seq(as.Date(binframe[1, 1]),
-                      as.Date(binframe[nrow(binframe), 1]),
-                      by = "days"))$wday
-# Create dummy variables for working days
-wd <- sapply(1 : length(dow), function(x){
-  ifelse(dow[x] == 0 || dow[x] == 6, 0, 1)
-})
-
 # Transform into data.table
-bintable <- setDT(binframe)
+bintable <- setDT(all_data)
 
-rm(binframe)
+rm(all_data)
 
 # Set keys for data table
 setkey(bintable, date, time)
 
-
-########## PLOTS ##########
+#### PLOTS ####
 # Logs of total financial volume by time of day and date
 fv_time <- bintable[, .(fvol = (mean(as.numeric(na.omit(quote_asset_vol))))), by = list(time)]
 fv_date <- bintable[, .(fvol = (mean(as.numeric(na.omit(quote_asset_vol))))), by = list(date)]
