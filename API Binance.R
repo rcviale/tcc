@@ -3,6 +3,7 @@ library(jsonlite)
 
 rm(list = ls())
 
+##### Checking each series' start date #####
 base <- "https://api.binance.com/"
 coins <- c('BTC', 'ETH', 'LTC', 'XRP', 'COMP', 'BNB', 'ADA', 'DOGE', 'DOT', 'PNT',
            'LINK', 'BCH', 'UNI', 'XLM', 'FIL', 'EOS', 'SOL', 'MATIC')
@@ -54,14 +55,6 @@ path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusã
 openxlsx::write.xlsx(ini_crypto, file = paste0(path, 'series_initial_dates.xlsx'))
 
 rm(binix, binraw, end_mths, ini_mths, ini_crypto, i, j, tickers, coins)
-
-
-
-
-
-
-
-
 
 
 
@@ -174,13 +167,7 @@ rm(list = ls())
 
 
 
-
-
-
-
-
-
-
+##### Download only one series #####
 # Days x time ranges
 base <- "https://api.binance.com/"
 coin <- 'BTC'
@@ -207,17 +194,17 @@ for (i in 1 : length(days)){
 rm(times_start, times_end, days)
 
 # First day and time range
-binraw <- GET(url = base, path = '/api/v3/klines', 
+binraw <- httr::GET(url = "https://api.binance.com/", path = '/api/v3/klines', 
               query = list(
-                symbol = ticker,
+                symbol = 'BTCUSDT',
                 interval = '1m',
-                startTime = '1619323140000',
-                endTime = '1619340420000',
+                startTime = '1504710000000',
+                endTime = '1504753140000',
                 limit = as.integer(1000)
               ))
 
 # Convert from JSON to matrix
-binix <- fromJSON(content(binraw, "text"), flatten = TRUE)
+bintest <- jsonlite::fromJSON(httr::content(binraw, "text"), flatten = TRUE)
 
 # Second day and time range + merge 1st and 2nd
 binraw2 <- GET(url = base, path = '/api/v3/klines', 

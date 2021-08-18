@@ -1,9 +1,63 @@
 ########## Starting point I (from raw imported matrix data) ##########
-path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-ini_crypto <- as.data.frame(readxl::read_excel(paste0(path, 'series_initial_dates.xlsx')))
+#path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+ini_crypto <- (readxl::read_excel(paste0('series_initial_dates.xlsx')))
+options(scipen = 10000)
+
+# Looping to change file names
+for (z in 1 : nrow(ini_crypto)){
+  # Load second data matrix
+  load(paste0('Data/binix_', ini_crypto[z, 5], '.RData'))
+  # Load as tibble, insert coin column and
+  tmp <- binix[, c('open_time', 'close')] %>% 
+    as_tibble()
+  names(tmp)[[2]] <- ini_crypto[z, 5]$coin
+  tmp <- tmp %>% 
+    mutate(open_time = lubridate::as_datetime(open_time/1000) %>% 
+             lubridate::floor_date(unit = 'minutes')
+    )
+  readr::write_rds(tmp, file = paste0('Data/Ess_', ini_crypto[z, 5], '.rds'))
+}
+
+files <- paste0('Data/Ess_', as.matrix(ini_crypto[, 5]), '.rds')
+
+upload <- map(files, readr::read_rds)
+
+all_data <- upload %>% reduce(full_join, by = 'open_time') %>% arrange(open_time)
+
+readr::write_rds(all_data, file = 'Data/all_data.rds')
+
+rm(upload, files)
+
+all_data$open_time %>% diff() -> a
+which(a != 60)[length(which(a != 60))]
+
+# upload %>% 
+#   enframe() %>% 
+#   mutate(value = map_depth(.x = value, 
+#                            .depth = 1,
+#                            .f = ~ . %>% select(.$open_time) %>% lubridate::as_datetime(./1000)))
+# 
+# reduce(full_join, by = 'open_time') 
+
+teste <- upload %>%
+  bind_rows() %>% 
+  mutate(open_time = lubridate::as_datetime(open_time/1000)) %>% 
+
+teste %>% 
+  filter(open_time >= "2018-01-01", open_time <= "2018-01-2") %>% 
+  tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>% 
+  tidyr::separate(col = date, into = c("year", "month", "day"), sep = "-") %>% 
+  tidyr::separate(col = time, into = c("hour", "minute"), sep = ":") %>% 
+  tidyr::complete(year, month, day, hour, minute)
+
+
+
+
 
 # Load first data matrix
-load(paste0(path, 'binix_', ini_crypto[1, 5], '.RData'))
+load(paste0('Data/binix_', ini_crypto[4, 5], '.RData'))
+
+
 # Isolate time and closing price columns
 fbinix <- binix[, c('open_time', 'close')]
 colnames(fbinix) <- c('unix', ini_crypto[1, 5])
@@ -12,21 +66,23 @@ colnames(fbinix) <- c('unix', ini_crypto[1, 5])
 fbinix[, 1] <- anytime::anytime(fbinix[, 1] / 1000, asUTC = TRUE) + 60
 #a <- as.numeric(fbinix[, 1])
 
-for (z in 2 : nrow(ini_crypto)){
+
+for (z in 1 : nrow(ini_crypto)){
   # Load second data matrix
-  load(paste0(path, 'binix_', ini_crypto[z, 5], '.RData'))
-  # Isolate time and closing price columns
-  binix <- binix[, c('open_time', 'close')]
+  load(paste0('Data/binix_', ini_crypto[z, 5], '.RData'))
+  # Insert coin column
+  binix %>% as_tibble() %>% mutate(coin = ini_crypto[z, 5]) %>% 
+    readr::write_rds(file = paste0('Data/', ini_crypto[z, 5], '.rds'))
   # Rename close column 
-  colnames(binix) <- c('unix', ini_crypto[z, 5])
-  # Convert open_time column to second-based UNIX time stamp and add 1 minute
-  binix[, 1] <- anytime::anytime(binix[, 1] / 1000, asUTC = TRUE) + 60
+#  colnames(binix) <- c('unix', ini_crypto[z, 5])
+#  # Convert open_time column to second-based UNIX time stamp and add 1 minute
+#  binix[, 1] <- anytime::anytime(binix[, 1] / 1000, asUTC = TRUE) + 60
   #b <- as.numeric(binix[, 1])
   
   #uab <- length(unique(c(a, b)))
   # Merge the two matrices
-  fbinix <- merge(fbinix, binix, by = 'unix', all = TRUE)
-  print(ini_crypto[z, 5])
+#  fbinix <- merge(fbinix, binix, by = 'unix', all = TRUE)
+#  print(ini_crypto[z, 5])
 }
 
 binframe <- fbinix
