@@ -6,43 +6,69 @@ options(scipen = 10000)
 
 # Looping to change file names and save them as RDS
 for (z in 1 : nrow(ini_crypto)){
-  # Load second data matrix
+  # Load data matrix
   load(paste0('Data/binix_', ini_crypto[z, 5], '.RData'))
-  # Load as tibble, insert coin column and
-  tmp <- binix[, c('open_time', 'close')] %>% 
+  # Load only timestamps and closing prices as tibble
+  tmp <- binix[, c('open_time', 'close')] %>%
     as_tibble()
-  names(tmp)[[2]] <- ini_crypto[z, 5]$coin
-  tmp <- tmp %>% 
-    mutate(open_time = lubridate::as_datetime(open_time/1000) %>% 
+  # Convert timestamps to seconds UNIX and make all seconds = 0
+  tmp <- tmp %>%
+    mutate(open_time = lubridate::as_datetime(open_time/1000) %>%
              lubridate::floor_date(unit = 'minutes')
     )
-  readr::write_rds(tmp, file = paste0('Data/Ess_', ini_crypto[z, 5], '.rds'))
+  # Save as RDS
+  readr::write_rds(tmp, file = paste0('Data/', ini_crypto[z, 5], '.rds'))
 }
 
-files <- paste0('Data/Ess_', as.matrix(ini_crypto[, 5]), '.rds')
 
-upload <- map(files, readr::read_rds)
 
-# Full join data, sort by open_time, separate date and time, and add dummies for day of the week and business day
-all_data <- upload %>% reduce(full_join, by = 'open_time') %>% arrange(open_time) %>% 
-  tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>% 
-  mutate(date = lubridate::as_date(date),
-         dow = lubridate::wday(date, week_start = 1),
-         wd = ifelse(dow == 6 || dow == 7, 0, 1))
+library(tidyverse)
 
-# Vector with timestamps' differences
-all_data$open_time %>% diff() -> a
-(which(a == max(a)))
+# Function to unify all the series' closing prices in one tibble sorted by time
+source('R/unify.R')
+all_data <- unify(as.matrix(ini_crypto[, 5]), 'Data/', 'open_time')
 
 # Save RDS
 readr::write_rds(all_data, file = 'Data/all_data.rds')
 
-rm(upload, files)
 
-##### Unified closing prices #####
 
+##### NA's analysis #####
 # Load data set
 all_data <- readr::read_rds('Data/all_data.rds')
+
+# Amount of NA's in each column
+a <- all_data %>% 
+  summarise_if(is.numeric, ~sum(is.na(.x)))
+
+# Functions to collapse series in chosen frequency and take log returns
+source('R/collapse_time.R')
+source('R/lrets.R')
+
+##### Unified closing prices #####
+all_data %>% 
+  slice_tail(n = 400000) %>% 
+  collapse_time(open_time, 5, mean, na.rm = TRUE) %>% 
+  lrets() %>%
+  mutate(short_time = lubridate::as_date(open_time)) %>% 
+  select(-open_time) %>% 
+  select(short_time, everything()) %>% 
+  nest(data = -short_time) %>%
+  slice_head(n = nrow(.) -1) %>% #FIXME
+  mutate(covs = map(.x = data, .f = ~cov(as.matrix(.x), use = "complete.obs")),
+         teste = map_lgl(.x = covs, .f = ~ any(is.na(.x))), 
+         pca = map(.x = covs, .f = ~princomp(.x)))
+
+all_data %>% 
+  slice_tail(n = 110000) %>% 
+  collapse_time(open_time, 5, tail, 1) %>% 
+  lrets() %>%
+  mutate(short_time = lubridate::as_date(open_time)) %>% 
+  select(-open_time) %>% 
+  select(short_time, everything()) %>% 
+  nest(data = -short_time) %>% 
+  mutate(nas = map_lgl(.x = data, .f = ~any(is.na(.x)), use = 'complete.obs'))
+
 
 # teste %>% 
 #   filter(open_time >= "2018-01-01", open_time <= "2018-01-2") %>% 
