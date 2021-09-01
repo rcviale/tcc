@@ -13,7 +13,7 @@ for (z in 1 : nrow(ini_crypto)){
     as_tibble()
   # Convert timestamps to seconds UNIX and make all seconds = 0
   tmp <- tmp %>%
-    mutate(open_time = lubridate::as_datetime(open_time/1000) %>%
+    mutate(open_time = lubridate::as_datetime(open_time/1000 + 60) %>%
              lubridate::floor_date(unit = 'minutes')
     )
   # Save as RDS
@@ -27,10 +27,11 @@ library(tidyverse)
 # Function to unify all the series' closing prices in one tibble sorted by time
 source('R/unify.R')
 all_data <- unify(as.matrix(ini_crypto[, 5]), 'Data/', 'open_time')
+all_data <- all_data %>% arrange(open_time) #FIXME
+all_data %>% slice_tail(n = 10)
 
 # Save RDS
 readr::write_rds(all_data, file = 'Data/all_data.rds')
-
 
 
 ##### NA's analysis #####
@@ -38,27 +39,14 @@ readr::write_rds(all_data, file = 'Data/all_data.rds')
 all_data <- readr::read_rds('Data/all_data.rds')
 
 # Amount of NA's in each column
-a <- all_data %>% 
-  summarise_if(is.numeric, ~sum(is.na(.x)))
+all_data %>% summarise_if(is.numeric, ~sum(is.na(.x)))
 
 # Functions to collapse series in chosen frequency and take log returns
 source('R/collapse_time.R')
 source('R/lrets.R')
 
 ##### Unified closing prices #####
-all_data %>% 
-  slice_tail(n = 400000) %>% 
-  collapse_time(open_time, 5, mean, na.rm = TRUE) %>% 
-  lrets() %>%
-  mutate(short_time = lubridate::as_date(open_time)) %>% 
-  select(-open_time) %>% 
-  select(short_time, everything()) %>% 
-  nest(data = -short_time) %>%
-  slice_head(n = nrow(.) -1) %>% #FIXME
-  mutate(covs = map(.x = data, .f = ~cov(as.matrix(.x), use = "complete.obs")),
-         teste = map_lgl(.x = covs, .f = ~ any(is.na(.x))), 
-         pca = map(.x = covs, .f = ~princomp(.x)))
-
+# Search for NAs in data before computing covariance matrix
 all_data %>% 
   slice_tail(n = 110000) %>% 
   collapse_time(open_time, 5, tail, 1) %>% 
@@ -69,13 +57,111 @@ all_data %>%
   nest(data = -short_time) %>% 
   mutate(nas = map_lgl(.x = data, .f = ~any(is.na(.x)), use = 'complete.obs'))
 
+# Create series in different frequency, take log returns, compute PCA
+all_data %>%
+  # slice_tail(n = 14400) %>% # Slice last obs of data
+  slice_head(n = 14400) %>% 
+  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
+  lrets(h = 1) %>% # Take log rets
+  mutate(short_time = lubridate::as_date(open_time)) %>% # Only day column
+  select(-open_time) %>%
+  select(short_time, everything()) %>% 
+  nest(data = -short_time) %>% # Nest according to day
+  slice_head(n = nrow(.) -1) %>% #FIXME Tira a última linha
+  mutate(covs = map(.x = data, .f = ~cov(as.matrix(.x), use = "pairwise.complete.obs")),
+         #teste = map_lgl(.x = covs, .f = ~ any(is.na(.x))), 
+         pca = map(.x = covs, .f = ~prcomp(.x, na.action = na.omit)))
 
-# teste %>% 
-#   filter(open_time >= "2018-01-01", open_time <= "2018-01-2") %>% 
-#   tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>% 
-#   tidyr::separate(col = date, into = c("year", "month", "day"), sep = "-") %>% 
-#   tidyr::separate(col = time, into = c("hour", "minute"), sep = ":") %>% 
-#   tidyr::complete(year, month, day, hour, minute)
+# PCA weights
+factoextra::get_eigenvalue(teste$pca[[1]])$cumulative.variance.percent
+tibble(coin = colnames(all_data)[2:19], 
+       weight = factoextra::get_pca_var(teste$pca[[1]])$contrib[1:18])
+
+
+
+# Market cap based weights
+weights <- readxl::read_excel(paste0('weights_matrix.xlsx'))
+
+# RV and collapse date functions
+source('R/rv.R')
+source('R/collapse_date.R')
+
+# Tibble with weighted RV
+mkt_vols <- all_data %>%
+  #slice_tail(n = 14400) %>% 
+  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
+  rv() %>%
+  collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
+  slice_head(n = nrow(.) -1) %>% #FIXME Tira a última linha
+  # Take square root (volatility) and multiply by weights
+  modify_if(is.numeric, .f = ~sqrt(.x)) %>% 
+  select_if(is.numeric) * select_if(weights, is.numeric)
+
+# Save RDS
+readr::write_rds(mkt_vols, file = 'Data/mkt_vols.rds')
+
+
+
+# Load Weighted RV tibble
+mkt_vols <- readr::read_rds('Data/mkt_vols.rds')
+mkt_vols %>% 
+  rowwise() %>% 
+  mutate(mkt_vol = BTC + ETH + BNB + LTC + ADA + XRP + XLM + EOS + LINK + MATIC +
+                   DOGE + BCH + COMP + PNT + DOT + SOL + UNI + FIL)
+  
+
+
+
+# Tibble with weighted RVol
+all_data %>%
+  #slice_tail(n = 14400) %>% 
+  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
+  rv() %>%
+  collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
+  slice_head(n = nrow(.) -1) %>% #FIXME Tira a última linha
+  # Take square root (volatility) and multiply by weights
+  modify_if(is.numeric, .f = ~sqrt(.x) * select_if(weights, is.numeric)) -> mkt_vol
+
+# Save RDS
+readr::write_rds(mkt_vol, file = 'Data/mkt_rets.rds')
+
+
+
+# Complete implicitly missing observations
+all_data %>%
+  slice_tail(n = 250000) %>% 
+  tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>%
+  tidyr::separate(col = date, into = c("year", "month", "day"), sep = "-") %>%
+  tidyr::separate(col = time, into = c("hour", "minute"), sep = ":") %>%
+  tidyr::complete(year, month, day, hour, minute) %>% 
+  mutate(datetime = lubridate::make_datetime(year = as.numeric(year), 
+                                             month = as.numeric(month), 
+                                             day = as.numeric(day), 
+                                             hour = as.numeric(hour), 
+                                             min = as.numeric(minute))) %>% 
+  select(-year, -month, -day, -hour, -minute) %>%
+  select(datetime, everything()) %>% 
+  dplyr::filter(datetime >= as.Date('2017-09-01'), datetime < as.Date('2021-08-01')) %>%
+  distinct(.keep_all = TRUE) #-> cdata
+
+
+# 2 time scaled log returns attempt
+all_data %>% 
+  slice_head(n = 14400) %>%
+  lrets(5) %>% 
+  mutate(short_time = lubridate::as_date(open_time)) %>% # Only day column
+  select(-open_time) %>%
+  select(short_time, everything()) %>% 
+  nest(data = -short_time) %>% # Nest according to day
+  mutate(ret = map(.x = data, .f = ~sum(.x, na.rm = TRUE) / 5)) -> teste
+  
+(unlist(teste$ret))
+
+
+# Save RDS
+readr::write_rds(cdata, file = 'Data/cdata.rds')
+
+
 
 # Convert do data frame
 all_data <- as.data.frame(all_data)
@@ -593,7 +679,7 @@ rm(feix, M)
 ### Specific HAR Construction ###
 # Time windows do be used
 short <- 7
-long <- 28
+long <- 30
 
 # Moving averages of RVOL
 rvols <- sqrt(unlist(lapply(lapply(short : L, function(t){
@@ -851,15 +937,21 @@ rm(crame)
 library(neuralnet)
 
 # Create data frame with data for HAR model
-rvt <- sqrt(ntable[23 : L, RV])
-rvt_1 <- sqrt(ntable[22 : (L - 1), RV])
-nrvol5 <- rvol5[18 : (L5 - 1)]
-nrvol22 <- rvol22[1 : (L22 - 1)]
+rvt <- sqrt(ntable[31 : L, RV])
+rvt_1 <- sqrt(ntable[30 : (L - 1), RV])
+nrvols <- rvols[24 : (Ls - 1)]
+nrvoll <- rvoll[1 : (Ll - 1)]
 
-df <- data.frame(rvt, rvt_1, nrvol5, nrvol22)
+df_train <- data.frame(rvt[1:730], rvt_1[1:730], nrvols[1:730], nrvoll[1:730])
+df_for <- data.frame(rvt[731:1278], rvt_1[731:1278], nrvols[731:1278], nrvoll[731:1278])
+colnames(df_train) <- c('rvt', 'rvt_1', 'nrvols', 'nrvoll')
+colnames(df_for) <- c('rvt', 'rvt_1', 'nrvols', 'nrvoll')
 
-nn <- neuralnet(rvt ~ rvt_1 + nrvol5 + nrvol22, data = df, 
-                hidden = 7, act.fct = "logistic", linear.output = FALSE)
+nn <- neuralnet(rvt ~ rvt_1 + nrvols + nrvoll, data = df, 
+                hidden = 5, act.fct = "logistic", linear.output = FALSE,
+                rep = 1) # Set df to training period
+
+Pred <- compute(nn, df_for)$net.result # Set df to forecast period
+
+
 plot(nn)
-
-
