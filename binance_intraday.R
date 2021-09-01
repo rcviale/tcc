@@ -86,19 +86,35 @@ weights <- readxl::read_excel(paste0('weights_matrix.xlsx'))
 source('R/rv.R')
 source('R/collapse_date.R')
 
-# Tibble with weighted RV
-mkt_vols <- all_data %>%
-  #slice_tail(n = 14400) %>% 
+
+
+# Tibble with weighted Realized Volatilities
+rvols <- all_data %>%
   collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
   rv() %>%
   collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
   slice_head(n = nrow(.) -1) %>% #FIXME Tira a última linha
-  # Take square root (volatility) and multiply by weights
+  # Take square root (volatility)
   modify_if(is.numeric, .f = ~sqrt(.x)) %>% 
-  select_if(is.numeric) * select_if(weights, is.numeric)
+  rename(date = open_time)
 
 # Save RDS
-readr::write_rds(mkt_vols, file = 'Data/mkt_vols.rds')
+readr::write_rds(rvols, file = 'Data/rvols.rds')
+
+rvols_long <- rvols %>% 
+  pivot_longer(-date, values_to = "rvol")
+
+# Pivot weights longer
+weights_long <- weights %>% 
+  pivot_longer(-date, values_to = "weights")
+
+# Left join both longs
+mkt_rvol <- left_join(rvols_long, weights_long, by = c('date', 'name')) %>% 
+  mutate(weighted_rvol = rvol * weights) %>% 
+  group_by(date) %>% 
+  summarise(mkt_rvol = sum(weighted_rvol))
+
+readr::write_rds(mkt_rvol, "Data/mkt_rvol.rds")
 
 
 
