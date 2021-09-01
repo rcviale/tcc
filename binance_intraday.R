@@ -67,7 +67,7 @@ all_data %>%
   select(-open_time) %>%
   select(short_time, everything()) %>% 
   nest(data = -short_time) %>% # Nest according to day
-  slice_head(n = nrow(.) -1) %>% #FIXME Tira a última linha
+  slice_head(n = nrow(.) -1) %>% # Tira a última linha
   mutate(covs = map(.x = data, .f = ~cov(as.matrix(.x), use = "pairwise.complete.obs")),
          #teste = map_lgl(.x = covs, .f = ~ any(is.na(.x))), 
          pca = map(.x = covs, .f = ~prcomp(.x, na.action = na.omit)))
@@ -78,35 +78,35 @@ tibble(coin = colnames(all_data)[2:19],
        weight = factoextra::get_pca_var(teste$pca[[1]])$contrib[1:18])
 
 
+#### Computation of Market Realized Volatility and Returns ####
 
-# Market cap based weights
+# Load Market Cap based weights
 weights <- readxl::read_excel(paste0('weights_matrix.xlsx'))
+all_data <- readr::read_rds('Data/all_data.rds')
+
+# Pivot weights longer
+weights_long <- weights %>% 
+  pivot_longer(-date, values_to = "weights")
 
 # RV and collapse date functions
 source('R/rv.R')
 source('R/collapse_date.R')
-
-
 
 # Tibble with weighted Realized Volatilities
 rvols <- all_data %>%
   collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
   rv() %>%
   collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
-  slice_head(n = nrow(.) -1) %>% #FIXME Tira a última linha
+  slice_head(n = nrow(.) -1) %>% # Tira a última linha
   # Take square root (volatility)
   modify_if(is.numeric, .f = ~sqrt(.x)) %>% 
   rename(date = open_time)
 
-# Save RDS
+# Save Rvols RDS
 readr::write_rds(rvols, file = 'Data/rvols.rds')
 
 rvols_long <- rvols %>% 
   pivot_longer(-date, values_to = "rvol")
-
-# Pivot weights longer
-weights_long <- weights %>% 
-  pivot_longer(-date, values_to = "weights")
 
 # Left join both longs
 mkt_rvol <- left_join(rvols_long, weights_long, by = c('date', 'name')) %>% 
@@ -114,32 +114,31 @@ mkt_rvol <- left_join(rvols_long, weights_long, by = c('date', 'name')) %>%
   group_by(date) %>% 
   summarise(mkt_rvol = sum(weighted_rvol))
 
+# Save Market RVol RDS
 readr::write_rds(mkt_rvol, "Data/mkt_rvol.rds")
 
+rm(rvols, rvols_long)
 
+# Repeat process for Returns
+rets <- all_data %>% 
+  collapse_time(open_time, 5, tail, 1) %>% 
+  lrets() %>% 
+  collapse_date(open_time, "day", sum, na.rm = TRUE) %>% 
+  slice_head(n = nrow(.) - 1) %>% 
+  rename(date = open_time)
 
-# Load Weighted RV tibble
-mkt_vols <- readr::read_rds('Data/mkt_vols.rds')
-mkt_vols %>% 
-  rowwise() %>% 
-  mutate(mkt_vol = BTC + ETH + BNB + LTC + ADA + XRP + XLM + EOS + LINK + MATIC +
-                   DOGE + BCH + COMP + PNT + DOT + SOL + UNI + FIL)
-  
+# Save returns RDS
+readr::write_rds(rets, file = 'Data/rets.rds')
 
+rets_long <- rets %>% pivot_longer(-date, values_to = "ret")
 
+mkt_ret <- left_join(rets_long, weights_long, by = c('date', 'name')) %>% 
+  mutate(weighted_ret = ret * weights) %>% 
+  group_by(date) %>% 
+  summarise(mkt_ret = sum(weighted_ret))
 
-# Tibble with weighted RVol
-all_data %>%
-  #slice_tail(n = 14400) %>% 
-  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
-  rv() %>%
-  collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
-  slice_head(n = nrow(.) -1) %>% #FIXME Tira a última linha
-  # Take square root (volatility) and multiply by weights
-  modify_if(is.numeric, .f = ~sqrt(.x) * select_if(weights, is.numeric)) -> mkt_vol
-
-# Save RDS
-readr::write_rds(mkt_vol, file = 'Data/mkt_rets.rds')
+# Save Market Returns RDS
+readr::write_rds(mkt_ret, "Data/mkt_ret.rds")
 
 
 
