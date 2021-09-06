@@ -41,9 +41,11 @@ all_data <- readr::read_rds('Data/all_data.rds')
 # Amount of NA's in each column
 all_data %>% summarise_if(is.numeric, ~sum(is.na(.x)))
 
-# Functions to collapse series in chosen frequency and take log returns
+# Functions to collapse series in chosen frequency, take log returns, take RV, and collapse in day
 source('R/collapse_time.R')
 source('R/lrets.R')
+source('R/rv.R')
+source('R/collapse_date.R')
 
 ##### Unified closing prices #####
 # Search for NAs in data before computing covariance matrix
@@ -78,21 +80,18 @@ tibble(coin = colnames(all_data)[2:19],
        weight = factoextra::get_pca_var(teste$pca[[1]])$contrib[1:18])
 
 
+
 #### Computation of Market Realized Volatility and Returns ####
 
 # Load Market Cap based weights
-weights <- readxl::read_excel(paste0('weights_matrix.xlsx'))
+weights <- readxl::read_excel(paste0('weights.xlsx'))
 all_data <- readr::read_rds('Data/all_data.rds')
 
 # Pivot weights longer
 weights_long <- weights %>% 
   pivot_longer(-date, values_to = "weights")
 
-# RV and collapse date functions
-source('R/rv.R')
-source('R/collapse_date.R')
-
-# Tibble with weighted Realized Volatilities
+# Tibble with Realized Volatilities
 rvols <- all_data %>%
   collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
   rv() %>%
@@ -105,10 +104,13 @@ rvols <- all_data %>%
 # Save Rvols RDS
 readr::write_rds(rvols, file = 'Data/rvols.rds')
 
+# Load Rvols
+rvols <- readr::read_rds("Data/rvols.rds")
+
 rvols_long <- rvols %>% 
   pivot_longer(-date, values_to = "rvol")
 
-# Left join both longs
+# Create Market Realized Volatility with Weighted Realized Volatility
 mkt_rvol <- left_join(rvols_long, weights_long, by = c('date', 'name')) %>% 
   mutate(weighted_rvol = rvol * weights) %>% 
   group_by(date) %>% 
@@ -130,8 +132,12 @@ rets <- all_data %>%
 # Save returns RDS
 readr::write_rds(rets, file = 'Data/rets.rds')
 
+# Load returns RDS
+rets <- readr::read_rds("Data/rets.RDS")
+
 rets_long <- rets %>% pivot_longer(-date, values_to = "ret")
 
+# Create Market Returns with Weighted Returns
 mkt_ret <- left_join(rets_long, weights_long, by = c('date', 'name')) %>% 
   mutate(weighted_ret = ret * weights) %>% 
   group_by(date) %>% 
@@ -139,6 +145,37 @@ mkt_ret <- left_join(rets_long, weights_long, by = c('date', 'name')) %>%
 
 # Save Market Returns RDS
 readr::write_rds(mkt_ret, "Data/mkt_ret.rds")
+
+rm(weights, weights_long, rets_long)
+
+
+
+#### Compute first Fama-MacBeth Regression ####
+mkt_rvol <- readr::read_rds("Data/mkt_rvol.rds")
+mkt_ret <- readr::read_rds("Data/mkt_ret.rds")
+rets <- readr::read_rds("Data/rets.rds")
+
+# Left join individual returns, market returns and realized volatilities
+daily_data <- left_join(rets, left_join(mkt_ret, mkt_rvol, by = "date"), by = "date")
+
+rm(mkt_ret, mkt_rvol, rets)
+
+# Compute first step regressions, exhibiting p-values for coefficients and for Ljung-Box teste on residuals
+regs <- daily_data %>% 
+  pivot_longer(cols = -c(date, mkt_ret, mkt_rvol), names_to = "assets", values_to = "rets") %>% 
+  nest(data = c(date, mkt_ret, mkt_rvol, rets)) %>% 
+  mutate(reg      = map(.x = data, .f = ~ lm(formula = rets ~ mkt_ret + mkt_rvol, 
+                                             data = .x)),
+         reg_tidy = map(.x = reg, .f = broom::tidy),
+         lbox     = map_dbl(.x = reg, .f = ~Box.test(residuals(.x), lag = 7, type = "Ljung-Box")$p.value)) %>% 
+  unnest(reg_tidy)
+
+# FIXME: make code ignore values == 0 in lm function for the shorter series'
+
+
+
+
+
 
 
 
