@@ -172,11 +172,43 @@ regs <- daily_data %>%
 
 # FIXME: make code ignore values == 0 in lm function for the shorter series'
 
+#### Compute second Fama-MacBeth Regression ####
+b1 <- regs$estimate[seq(2, 53, 3)] # Return betas
+b2 <- regs$estimate[seq(3, 54, 3)] # Volatility betas
+
+# Compute second step regressions, exhibiting p-values for coeffs
+regs2 <- daily_data %>% 
+  select(-c(mkt_ret, mkt_rvol)) %>% 
+  pivot_longer(cols = -date, names_to = "assets", values_to = "rets") %>% 
+  nest(data = c(assets, rets)) %>% 
+  mutate(reg      = map(.x = data, .f = ~ lm(formula = rets ~ b1 + b2, data = .x)), 
+         reg_tidy = map(.x = reg, .f = broom::tidy)) %>% 
+  unnest(reg_tidy)
+
+gammas2 <- regs2$estimate[seq(3, nrow(regs2), 3)]
+# mu_g2 <- mean(gammas2)
+# sd_g2 <- sd(gammas2)
+# test_stat <- sqrt(nrow(regs2) / 3) * mu_g2 / sd_g2
+# p_value <- 2 * pt(-abs(test_stat), df = nrow(regs2) - 1)
+t.test(gammas2)
 
 
+y <- seq(1, 18, 1)
+delme <- tibble(.rows = 1430)
+
+for (i in 1:18){
+  delme[, i] <- rep(x[i], 1430)
+}
+colnames(delme) <- colnames(daily_data[2:19])
+
+delme <- delme %>% mutate(date = daily_data$date, 
+                          mkt_rvol = daily_data$mkt_rvol, 
+                          mkt_ret = daily_data$mkt_ret) %>% 
+                   select(date, everything())
 
 
-
+x %>% map2(.x = x,  .y = y, ..1 = colnames(daily_data)[2:19],
+           .f = ~mutate(delme, ..1 = rep(.x[.y], 1430))) -> nx
 
 
 # Complete implicitly missing observations
