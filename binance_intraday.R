@@ -1,4 +1,4 @@
-##### Import raw data matrix and unify all series #####
+#### Import raw data matrix and unify all series #####
 ini_crypto <- (readxl::read_excel(paste0('series_initial_dates.xlsx')))
 
 # Deactivate scientific notation
@@ -34,20 +34,24 @@ all_data %>% slice_tail(n = 10)
 readr::write_rds(all_data, file = 'Data/all_data.rds')
 
 
-##### NA's analysis #####
+### NA's analysis ###
 # Load data set
 all_data <- readr::read_rds('Data/all_data.rds')
 
 # Amount of NA's in each column
 all_data %>% summarise_if(is.numeric, ~sum(is.na(.x)))
 
+
+
+#### Covariance Matrix and Principal Component Analysis #####
+# Load data set
+all_data <- readr::read_rds('Data/all_data.rds')
 # Functions to collapse series in chosen frequency, take log returns, take RV, and collapse in day
 source('R/collapse_time.R')
 source('R/lrets.R')
 source('R/rv.R')
 source('R/collapse_date.R')
 
-##### Unified closing prices #####
 # Search for NAs in data before computing covariance matrix
 all_data %>% 
   slice_tail(n = 110000) %>% 
@@ -60,40 +64,42 @@ all_data %>%
   mutate(nas = map_lgl(.x = data, .f = ~any(is.na(.x)), use = 'complete.obs'))
 
 # Create series in different frequency, take log returns, compute PCA
-all_data %>%
-  # slice_tail(n = 14400) %>% # Slice last obs of data
-  slice_head(n = 14400) %>% 
-  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
-  lrets(h = 1) %>% # Take log rets
-  mutate(short_time = lubridate::as_date(open_time)) %>% # Only day column
+pca_weights <- all_data %>%
+  #slice_tail(n = 485000) %>% # Slice last obs of data
+  #slice_head(n = 14400) %>% 
+  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency
+  lrets() %>% # Take log rets
+  mutate(date = lubridate::as_date(open_time)) %>% # Only day column
   select(-open_time) %>%
-  select(short_time, everything()) %>% 
-  nest(data = -short_time) %>% # Nest according to day
+  select(date, everything()) %>% 
+  nest(data = -date) %>% # Nest according to day
   slice_head(n = nrow(.) -1) %>% # Tira a última linha
-  mutate(covs = map(.x = data, .f = ~cov(as.matrix(.x), use = "pairwise.complete.obs")),
-         #teste = map_lgl(.x = covs, .f = ~ any(is.na(.x))), 
-         pca = map(.x = covs, .f = ~prcomp(.x, na.action = na.omit)))
+  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
+         layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
+         pca     = map2(.x = covs, .y = layout, .f = ~ princomp(.x[(1 : .y), (1 : .y)])),
+         weights = map2(.x = pca, .y = layout, .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)], 
+                                                             weight = factoextra::get_pca_var(.x)$contrib[1 : .y] / 100))) %>% 
+  select(-c(layout, covs, pca, data)) %>% 
+  unnest(weights) %>% 
+  pivot_wider(names_from = asset, values_from = weight) %>% 
+  replace(is.na(.), 0)
+
+# Save RDS
+readr::write_rds(pca_weights, file = "Data/pca_weights.rds")
 
 # PCA weights
-factoextra::get_eigenvalue(teste$pca[[1]])$cumulative.variance.percent
 tibble(coin = colnames(all_data)[2:19], 
        weight = factoextra::get_pca_var(teste$pca[[1]])$contrib[1:18])
 
 
 
-#### Computation of Market Realized Volatility and Returns ####
-
-# Load Market Cap based weights
-weights <- readxl::read_excel(paste0('weights.xlsx'))
+#### Computation of Returns and Realized Volatility Matrices ####
+# Load data set
 all_data <- readr::read_rds('Data/all_data.rds')
-
-# Pivot weights longer
-weights_long <- weights %>% 
-  pivot_longer(-date, values_to = "weights")
 
 # Tibble with Realized Volatilities
 rvols <- all_data %>%
-  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency, taking the mean
+  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency
   rv() %>%
   collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
   slice_head(n = nrow(.) -1) %>% # Tira a última linha
@@ -103,23 +109,6 @@ rvols <- all_data %>%
 
 # Save Rvols RDS
 readr::write_rds(rvols, file = 'Data/rvols.rds')
-
-# Load Rvols
-rvols <- readr::read_rds("Data/rvols.rds")
-
-rvols_long <- rvols %>% 
-  pivot_longer(-date, values_to = "rvol")
-
-# Create Market Realized Volatility with Weighted Realized Volatility
-mkt_rvol <- left_join(rvols_long, weights_long, by = c('date', 'name')) %>% 
-  mutate(weighted_rvol = rvol * weights) %>% 
-  group_by(date) %>% 
-  summarise(mkt_rvol = sum(weighted_rvol))
-
-# Save Market RVol RDS
-readr::write_rds(mkt_rvol, "Data/mkt_rvol.rds")
-
-rm(rvols, rvols_long)
 
 # Repeat process for Returns
 rets <- all_data %>% 
@@ -132,56 +121,141 @@ rets <- all_data %>%
 # Save returns RDS
 readr::write_rds(rets, file = 'Data/rets.rds')
 
-# Load returns RDS
+rm(rvols, rets, all_data)
+
+
+
+#### Create Market Realized Volatility with Weighted Realized Volatility ####
+# Load returns, realized volatilities and market cap based weights
 rets <- readr::read_rds("Data/rets.RDS")
+rvols <- readr::read_rds("Data/rvols.rds")
+weights <- readxl::read_excel(paste0('Data/weights.xlsx'))
+pca_weights <- readr::read_rds("Data/pca_weights.rds")
 
-rets_long <- rets %>% pivot_longer(-date, values_to = "ret")
+# Pivot all longer
+rets_long <- rets %>% 
+  pivot_longer(-date, values_to = "ret")
+rvols_long <- rvols %>% 
+  pivot_longer(-date, values_to = "rvol")
+weights_long <- weights %>% 
+  pivot_longer(-date, values_to = "weights")
+pca_weights_long <- pca_weights %>% 
+  pivot_longer(-date, values_to = "weights")
 
-# Create Market Returns with Weighted Returns
-mkt_ret <- left_join(rets_long, weights_long, by = c('date', 'name')) %>% 
-  mutate(weighted_ret = ret * weights) %>% 
-  group_by(date) %>% 
-  summarise(mkt_ret = sum(weighted_ret))
+rm(rets, rvols, weights, pca_weights)
 
-# Save Market Returns RDS
+# Load mkt_est function
+source("R/mkt_est.R")
+
+### Market Cap based Market Estimates ###
+mkt_rvol <- mkt_est(rvols_long, weights_long, rvol) %>% 
+  rename(mkt_rvol = mkt_est)
+
+# Save Market Cap based RVol RDS
+readr::write_rds(mkt_rvol, "Data/mkt_rvol.rds")
+
+# Create Market Cap based Market Returns
+mkt_ret <- mkt_est(rets_long, weights_long, ret) %>% 
+  rename(mkt_ret = mkt_est)
+
+# Save Market Cap based Returns RDS
 readr::write_rds(mkt_ret, "Data/mkt_ret.rds")
 
-rm(weights, weights_long, rets_long)
+rm(weights_long, mkt_ret, mkt_rvol)
+
+
+### PCA based Market Estimates ###
+mkt_rvol_pca <- mkt_est(rvols_long, pca_weights_long, rvol) %>% 
+  rename(mkt_rvol = mkt_est)
+
+# Save Market Cap based RVol RDS
+readr::write_rds(mkt_rvol_pca, "Data/mkt_rvol_pca.rds")
+
+# Create Market Cap based Market Returns
+mkt_ret_pca <- mkt_est(rets_long, pca_weights_long, ret) %>% 
+  rename(mkt_ret = mkt_est)
+
+# Save Market Cap based Returns RDS
+readr::write_rds(mkt_ret_pca, "Data/mkt_ret_pca.rds")
+
+rm(list = ls())
 
 
 
-#### Compute first Fama-MacBeth Regression ####
+#### Create daily data tibbles for Fama-MacBeth Regression ####
+# Load Assets' Returns and Market Cap based estimates
+rets <- readr::read_rds("Data/rets.rds")
 mkt_rvol <- readr::read_rds("Data/mkt_rvol.rds")
 mkt_ret <- readr::read_rds("Data/mkt_ret.rds")
-rets <- readr::read_rds("Data/rets.rds")
 
-# Left join individual returns, market returns and realized volatilities
+# Left join individual returns, Market Cap based Market Returns and Realized volatilities
 daily_data <- left_join(rets, left_join(mkt_ret, mkt_rvol, by = "date"), by = "date")
 
-rm(mkt_ret, mkt_rvol, rets)
+# Save RDS with unified Market Cap based estimates daily data
+readr::write_rds(daily_data, file = "Data/daily_data.rds")
 
-# Compute first step regressions, exhibiting p-values for coefficients and for Ljung-Box teste on residuals
-regs <- daily_data %>% 
-  pivot_longer(cols = -c(date, mkt_ret, mkt_rvol), names_to = "assets", values_to = "rets") %>% 
-  nest(data = c(date, mkt_ret, mkt_rvol, rets)) %>% 
-  mutate(reg      = map(.x = data, .f = ~ lm(formula = rets ~ mkt_ret + mkt_rvol, 
-                                             data = .x)),
-         reg_tidy = map(.x = reg, .f = broom::tidy),
-         lbox     = map_dbl(.x = reg, .f = ~Box.test(residuals(.x), lag = 7, type = "Ljung-Box")$p.value)) %>% 
-  unnest(reg_tidy)
+rm(mkt_ret, mkt_rvol)
 
-# FIXME: make code ignore values == 0 in lm function for the shorter series'
+# Load PCA based estimates
+mkt_rvol_pca <- readr::read_rds("Data/mkt_rvol_pca.rds")
+mkt_ret_pca <- readr::read_rds("Data/mkt_ret_pca.rds")
+
+# Left join individual returns, PCA based Market Returns and Realized volatilities
+daily_data_pca <- left_join(rets, left_join(mkt_ret_pca, mkt_rvol_pca, by = "date"), by = "date")
+
+# Save RDS with unified PCA Cap based estimates daily data
+readr::write_rds(daily_data_pca, file = "Data/daily_data_pca.rds")
+
+rm(list = ls())
 
 
 
-#### Compute second Fama-MacBeth Regression ####
+#### Fama-MacBeth Regressions (FINALLY!) ####
+# Load Market Cap and PCA based daily data tibbles
+daily_data <- readr::read_rds("Data/daily_data.rds")
+daily_data_pca <- readr::read_rds("Data/daily_data_pca.rds")
+
+# Load pre Fama-MacBeth regression functions
+source("R/pre_fmb.R")
+
+# Check for any existing zeroes after each series start dates
+daily_data %>% pre_fmb
+daily_data_pca %>% pre_fmb
+# If returns FALSE, proceed with Fama-MacBeth regression
+
+rm(pre_fmb)
+
+# Load Fama-MacBeth regression functions
+source("R/fmb1.R")
 source("R/fmb2.R")
 
-# Compute second step regressions, exhibiting p-values for coeffs
+### Fama-MacBeth with Market Cap based estimates ###
+# Compute first step regressions
+regs <- daily_data %>% fmb1()
+
+# Compute second step regressions
 regs2 <- daily_data %>% fmb2(beta1 = regs$estimate[seq(2, 53, 3)], 
                              beta2 = regs$estimate[seq(3, 54, 3)])
 
-t.test(regs2$estimate[seq(3, nrow(regs2), 3)])
+# t test for the coefficient of interest
+mkt_cap_t <- t.test(regs2$estimate[seq(3, nrow(regs2), 3)])
+
+
+### Fama-MacBeth with PCA based estimates ###
+# Compute first step regressions
+regs <- daily_data_pca %>% fmb1()
+
+# Compute second step regressions
+regs2 <- daily_data_pca %>% fmb2(beta1 = regs$estimate[seq(2, 53, 3)], 
+                                 beta2 = regs$estimate[seq(3, 54, 3)])
+
+# t test for the coefficient of interest
+pca_t <- t.test(regs2$estimate[seq(3, nrow(regs2), 3)])
+
+rm(regs, regs2, fmb1, fmb2)
+
+mkt_cap_t
+pca_t
 
 # mu_g2 <- mean(gammas2)
 # sd_g2 <- sd(gammas2)
