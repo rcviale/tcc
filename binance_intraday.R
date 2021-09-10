@@ -43,63 +43,28 @@ all_data %>% summarise_if(is.numeric, ~sum(is.na(.x)))
 
 
 
-#### Covariance Matrix and Principal Component Analysis #####
-# Load data set
-all_data <- readr::read_rds('Data/all_data.rds')
+#### Computation of Returns and Realized Volatility Matrices ####
 # Functions to collapse series in chosen frequency, take log returns, take RV, and collapse in day
 source('R/collapse_time.R')
 source('R/lrets.R')
 source('R/rv.R')
 source('R/collapse_date.R')
 
-# Search for NAs in data before computing covariance matrix
-all_data %>% 
-  slice_tail(n = 110000) %>% 
-  collapse_time(open_time, 5, tail, 1) %>% 
-  lrets() %>%
-  mutate(short_time = lubridate::as_date(open_time)) %>% 
-  select(-open_time) %>% 
-  select(short_time, everything()) %>% 
-  nest(data = -short_time) %>% 
-  mutate(nas = map_lgl(.x = data, .f = ~any(is.na(.x)), use = 'complete.obs'))
-
-# Create series in different frequency, take log returns, compute PCA
-pca_weights <- all_data %>%
-  #slice_tail(n = 485000) %>% # Slice last obs of data
-  #slice_head(n = 14400) %>% 
-  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency
-  lrets() %>% # Take log rets
-  mutate(date = lubridate::as_date(open_time)) %>% # Only day column
-  select(-open_time) %>%
-  select(date, everything()) %>% 
-  nest(data = -date) %>% # Nest according to day
-  slice_head(n = nrow(.) -1) %>% # Tira a última linha
-  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
-         layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
-         pca     = map2(.x = covs, .y = layout, .f = ~ princomp(.x[(1 : .y), (1 : .y)])),
-         weights = map2(.x = pca, .y = layout, .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)], 
-                                                             weight = factoextra::get_pca_var(.x)$contrib[1 : .y] / 100))) %>% 
-  select(-c(layout, covs, pca, data)) %>% 
-  unnest(weights) %>% 
-  pivot_wider(names_from = asset, values_from = weight) %>% 
-  replace(is.na(.), 0)
-
-# Save RDS
-readr::write_rds(pca_weights, file = "Data/pca_weights.rds")
-
-# PCA weights
-tibble(coin = colnames(all_data)[2:19], 
-       weight = factoextra::get_pca_var(teste$pca[[1]])$contrib[1:18])
-
-
-
-#### Computation of Returns and Realized Volatility Matrices ####
-# Load data set
+# Load raw data set
 all_data <- readr::read_rds('Data/all_data.rds')
+
+# Convert series to different time frequency
+all_data <- all_data %>%
+  collapse_time(open_time, 5, tail, 1) # 5min, closing
+
+# Save RDS for the future
+readr::write_rds(all_data, file = "Data/all_data5.rds")
+
+# Load specific data set
+all_data <- readr::read_rds('Data/all_data5.rds')
 
 # Tibble with Realized Volatilities
 rvols <- all_data %>%
-  collapse_time(open_time, 5, tail, 1) %>% # Collapse in diff frequency
   rv() %>%
   collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
   slice_head(n = nrow(.) -1) %>% # Tira a última linha
@@ -112,7 +77,6 @@ readr::write_rds(rvols, file = 'Data/rvols.rds')
 
 # Repeat process for Returns
 rets <- all_data %>% 
-  collapse_time(open_time, 5, tail, 1) %>% 
   lrets() %>% 
   collapse_date(open_time, "day", sum, na.rm = TRUE) %>% 
   slice_head(n = nrow(.) - 1) %>% 
@@ -125,31 +89,65 @@ rm(rvols, rets, all_data)
 
 
 
+#### Covariance Matrix and Principal Component Analysis #####
+# Load RDS with specific time frequency
+all_data <- readr::read_rds("Data/all_data5.rds")
+
+# Take log returns, compute PCA weights and 1st component series
+pca_mkt <- all_data %>%
+  #slice_tail(n = 2880) %>% # Slice last obs of data
+  #slice_head(n = 2880) %>%
+  lrets() %>% # Take log rets
+  mutate(date = lubridate::as_date(open_time)) %>% # Only day column
+  select(-open_time) %>%
+  select(date, everything()) %>% 
+  nest(data = -date) %>% # Nest according to day
+  slice_head(n = nrow(.) -1) %>% # Tira a última linha
+  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
+         layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
+         pca     = map2(.x = covs, .y = layout, .f = ~ princomp(.x[(1 : .y), (1 : .y)])),
+         mkt_ret = map_dbl(.x = pca, .f = ~ factoextra::get_eig(.x)$eigenvalue[1]),
+         weights = map2(.x = pca, .y = layout, 
+                        .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)],
+                                      weight = factoextra::get_pca_var(.x)$contrib[1 : .y] / 100))) %>%
+  select(-c(pca, data)) %>% 
+  unnest(weights) %>% 
+  pivot_wider(names_from = asset, values_from = weight) %>% 
+  nest(data = -c(date, covs, mkt_ret, layout)) %>% 
+  mutate(act_cov  = map2(.x = covs, .y = layout, .f = ~ as.matrix(.x[1:.y, 1:.y])),
+         act_wts  = map2(.x = data, .y = layout, .f = ~ as.matrix(.x[1:.y])),
+         mkt_rv   = map2_dbl(.x = act_cov, .y = act_wts, .f = ~ .y %*% .x %*% t(.y)),
+         mkt_rvol = sqrt(mkt_rv)) %>% 
+  select(-c(covs, layout, data, act_cov, act_wts))
+
+# Save RDS
+readr::write_rds(pca_mkt, file = "Data/pca_mkt.rds")
+
+
+
 #### Create Market Realized Volatility with Weighted Realized Volatility ####
 # Load returns, realized volatilities and market cap based weights
 rets <- readr::read_rds("Data/rets.RDS")
 rvols <- readr::read_rds("Data/rvols.rds")
 weights <- readxl::read_excel(paste0('Data/weights.xlsx'))
-pca_weights <- readr::read_rds("Data/pca_weights.rds")
 
 # Pivot all longer
 rets_long <- rets %>% 
   pivot_longer(-date, values_to = "ret")
-rvols_long <- rvols %>% 
-  pivot_longer(-date, values_to = "rvol")
 weights_long <- weights %>% 
   pivot_longer(-date, values_to = "weights")
-pca_weights_long <- pca_weights %>% 
-  pivot_longer(-date, values_to = "weights")
 
-rm(rets, rvols, weights, pca_weights)
+rm(rets, weights)
 
 # Load mkt_est function
 source("R/mkt_est.R")
 
 ### Market Cap based Market Estimates ###
-mkt_rvol <- mkt_est(rvols_long, weights_long, rvol) %>% 
-  rename(mkt_rvol = mkt_est)
+mkt_rvol <- rvols %>%
+  # Turn to variance
+  modify_if(is.numeric, .f = ~ .x ^ 2) %>% 
+  nest(weights = -date) %>% 
+  mutate(covs)                                                  #FIXME Save covariances to input here
 
 # Save Market Cap based RVol RDS
 readr::write_rds(mkt_rvol, "Data/mkt_rvol.rds")
@@ -160,23 +158,6 @@ mkt_ret <- mkt_est(rets_long, weights_long, ret) %>%
 
 # Save Market Cap based Returns RDS
 readr::write_rds(mkt_ret, "Data/mkt_ret.rds")
-
-rm(weights_long, mkt_ret, mkt_rvol)
-
-
-### PCA based Market Estimates ###
-mkt_rvol_pca <- mkt_est(rvols_long, pca_weights_long, rvol) %>% 
-  rename(mkt_rvol = mkt_est)
-
-# Save Market Cap based RVol RDS
-readr::write_rds(mkt_rvol_pca, "Data/mkt_rvol_pca.rds")
-
-# Create Market Cap based Market Returns
-mkt_ret_pca <- mkt_est(rets_long, pca_weights_long, ret) %>% 
-  rename(mkt_ret = mkt_est)
-
-# Save Market Cap based Returns RDS
-readr::write_rds(mkt_ret_pca, "Data/mkt_ret_pca.rds")
 
 rm(list = ls())
 
@@ -197,11 +178,10 @@ readr::write_rds(daily_data, file = "Data/daily_data.rds")
 rm(mkt_ret, mkt_rvol)
 
 # Load PCA based estimates
-mkt_rvol_pca <- readr::read_rds("Data/mkt_rvol_pca.rds")
-mkt_ret_pca <- readr::read_rds("Data/mkt_ret_pca.rds")
+pca_mkt <- readr::read_rds("Data/pca_mkt.rds")
 
 # Left join individual returns, PCA based Market Returns and Realized volatilities
-daily_data_pca <- left_join(rets, left_join(mkt_ret_pca, mkt_rvol_pca, by = "date"), by = "date")
+daily_data_pca <- left_join(rets, pca_mkt, by = "date") %>% select(-mkt_rv)
 
 # Save RDS with unified PCA Cap based estimates daily data
 readr::write_rds(daily_data_pca, file = "Data/daily_data_pca.rds")
