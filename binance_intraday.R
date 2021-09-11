@@ -300,6 +300,8 @@ cap_garch_t
 pca_t
 pca_garch_t
 
+rm(list = ls())
+
 
 
 # mu_g2 <- mean(gammas2)
