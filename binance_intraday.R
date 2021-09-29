@@ -1,5 +1,7 @@
 #### Import raw data matrix and unify all series #####
-ini_crypto <- (readxl::read_excel(paste0('series_initial_dates.xlsx')))
+library(tidyverse)
+
+ini_crypto <- readxl::read_excel(paste0('series_initial_dates.xlsx'))
 
 # Deactivate scientific notation
 options(scipen = 10000)
@@ -20,10 +22,6 @@ for (z in 1 : nrow(ini_crypto)){
   readr::write_rds(tmp, file = paste0('Data/', ini_crypto[z, 5], '.rds'))
 }
 
-
-
-library(tidyverse)
-
 # Function to unify all the series' closing prices in one tibble sorted by time
 source('R/unify.R')
 all_data <- unify(as.matrix(ini_crypto[, 5]), 'Data/', 'open_time')
@@ -34,12 +32,54 @@ all_data %>% slice_tail(n = 10)
 readr::write_rds(all_data, file = 'Data/all_data.rds')
 
 
+
+# Data summary
+gazer1 <- ini_crypto[, c(2, 4, 5, 6)]
+gazer1 <- gazer1 %>% 
+  select(name, coin, date, nobs)
+
 ### NA's analysis ###
 # Load data set
 all_data <- readr::read_rds('Data/all_data.rds')
 
-# Amount of NA's in each column
-all_data %>% summarise_if(is.numeric, ~sum(is.na(.x)))
+# Complete implicitly missing observations
+cdata <- all_data %>%
+  tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>%
+  tidyr::separate(col = date, into = c("year", "month", "day"), sep = "-") %>%
+  tidyr::separate(col = time, into = c("hour", "minute", "second"), sep = ":") %>%
+  tidyr::complete(year, month, day, hour, minute, second) %>% 
+  mutate(datetime = lubridate::make_datetime(year = as.numeric(year), 
+                                             month = as.numeric(month), 
+                                             day = as.numeric(day), 
+                                             hour = as.numeric(hour), 
+                                             min = as.numeric(minute))) %>% 
+  select(-year, -month, -day, -hour, -minute, -second) %>%
+  select(datetime, everything()) %>% 
+  dplyr::filter(datetime >= as.Date('2017-09-01'), datetime < as.Date('2021-08-01')) %>% 
+  arrange(datetime, BTC) %>% 
+  distinct(datetime, .keep_all = TRUE)
+
+# Save RDS
+readr::write_rds(cdata, file = "Data/cdata.rds")
+
+
+
+# Load complete data
+cdata <- readr::read_rds("Data/cdata.rds")
+
+# Amount of NAs in the middle of each series
+nas <- t(cdata %>% summarise_if(is.numeric, ~sum(is.na(.x)))) - 
+  (t(cdata %>% summarise_if(is.numeric, ~which(is.na(.x) == FALSE)[1])) - 1)
+
+gazer1 <- gazer1 %>% 
+  mutate(nas = as.vector(nas),
+         nobs = 1430 * 1440 - as.vector(nas),
+         perc_nas = round(as.vector(nas) / nobs * 100, digits = 2)) %>%
+  # select(name, coin, date, nobs, nas, perc_nas) %>% 
+  rename(Name = name, Acronym = coin, `Initial Date` = date,
+         N = nobs, NAs = nas, `% NAs` = perc_nas)
+
+stargazer::stargazer(gazer1, summary = F)
 
 
 
@@ -62,8 +102,31 @@ readr::write_rds(all_data, file = "Data/all_data5.rds")
 
 rm(collapse_time)
 
+
+
 # Load specific data set
 all_data <- readr::read_rds('Data/all_data5.rds')
+
+# Tibble with Realized Variances
+rvs <- all_data %>%
+  rv() %>%
+  collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
+  slice_head(n = nrow(.) -1) %>% # Tira a última linha
+  rename(date = open_time)
+
+# Save RVs RDS
+readr::write_rds(rvs, file = 'Data/rvs.rds')
+
+# Read RDS
+rvs <- readr::read_rds(file = 'Data/rvs.rds')
+
+rvs[rvs == 0] = NA
+
+stargazer::stargazer(as.data.frame(rvs %>% select(-date)), summary = TRUE)
+
+rm(rvs)
+
+
 
 # Tibble with Realized Volatilities
 rvols <- all_data %>%
@@ -77,7 +140,16 @@ rvols <- all_data %>%
 # Save Rvols RDS
 readr::write_rds(rvols, file = 'Data/rvols.rds')
 
+# Read RDS
+rvols <- readr::read_rds(file = 'Data/rvols.rds')
+
+rvols[rvols == 0] = NA
+
+stargazer::stargazer(as.data.frame(rvols %>% select(-date)), summary = TRUE)
+
 rm(rv, rvols)
+
+
 
 # Repeat process for Returns
 rets <- all_data %>% 
@@ -88,6 +160,13 @@ rets <- all_data %>%
 
 # Save returns RDS
 readr::write_rds(rets, file = 'Data/rets.rds')
+
+# Read RDS
+rets <- readr::read_rds(file = 'Data/rets.rds')
+
+rets[rets == 0] = NA
+
+stargazer::stargazer(as.data.frame(rets %>% select(-date)), summary = TRUE)
 
 rm(rets, all_data, collapse_date)
 
@@ -315,55 +394,8 @@ rm(list = ls())
 
 
 
-# Complete implicitly missing observations
-all_data %>%
-  slice_tail(n = 250000) %>% 
-  tidyr::separate(col = open_time, into = c('date', 'time'), sep = ' ') %>%
-  tidyr::separate(col = date, into = c("year", "month", "day"), sep = "-") %>%
-  tidyr::separate(col = time, into = c("hour", "minute"), sep = ":") %>%
-  tidyr::complete(year, month, day, hour, minute) %>% 
-  mutate(datetime = lubridate::make_datetime(year = as.numeric(year), 
-                                             month = as.numeric(month), 
-                                             day = as.numeric(day), 
-                                             hour = as.numeric(hour), 
-                                             min = as.numeric(minute))) %>% 
-  select(-year, -month, -day, -hour, -minute) %>%
-  select(datetime, everything()) %>% 
-  dplyr::filter(datetime >= as.Date('2017-09-01'), datetime < as.Date('2021-08-01')) %>%
-  distinct(.keep_all = TRUE) #-> cdata
 
 
-# 2 time scaled log returns attempt
-all_data %>% 
-  slice_head(n = 14400) %>%
-  lrets(5) %>% 
-  mutate(short_time = lubridate::as_date(open_time)) %>% # Only day column
-  select(-open_time) %>%
-  select(short_time, everything()) %>% 
-  nest(data = -short_time) %>% # Nest according to day
-  mutate(ret = map(.x = data, .f = ~sum(.x, na.rm = TRUE) / 5)) -> teste
-  
-(unlist(teste$ret))
-
-
-# Save RDS
-readr::write_rds(cdata, file = 'Data/cdata.rds')
-
-
-
-# Convert do data frame
-all_data <- as.data.frame(all_data)
-
-# Load data.table package
-library(data.table)
-
-# Transform into data.table
-bintable <- setDT(all_data)
-
-rm(all_data)
-
-# Set keys for data table
-setkey(bintable, date, time)
 
 #### PLOTS ####
 # Logs of total financial volume by time of day and date

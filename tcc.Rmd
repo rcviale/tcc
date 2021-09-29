@@ -1,0 +1,124 @@
+---
+title: "TCC"
+author: "Rodrigo Viale"
+date: "28/09/2021"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## 1. Introduction
+
+A alocação de carteiras de investimento de maneira assertiva é uma tarefa de difícil execução, uma vez que envolve invariavelmente uma pluralidade de riscos. O risco de mercado em particular nunca pode ser completamente eliminado, porém, muito se discute em termos de seu controle e minimização, principalmente através de diversificação, meio esse que depende do mapeamento correto das correlações entre os ativos. Portanto, torna-se necessária, em um processo de construção de carteiras visando a otimização de portfólios, não só a estimação da matriz de covariâncias de maneira assertiva, mas também de medidas de volatilidade precisas.
+
+Um método muito comum e popularizado na literatura que trata da previsão de volatilidade é o GARCH (\emph{General Autoregressive Conditional Heteroskedasticity}), introduzido por \citeonline{Bollersev86} e que é empregado em retornos diários. GARCH-type models, however, tend to overpredict volatility, as documented by \citeonline{Nomikos11} when dealing with petroleum futures' time series. These models, therefore, present a slow response after a volatility shock passes, taking time for the estimates to go down.
+
+With the growing amount, availability and managebility of data at higher frequencies (intraday) than the daily one, a richer sample covariance matrix can be estimated, leading ultimately to the construction of a matrix based on realized measures. 
+
+Cryptocurrencies have gained notoriety over the last few years, especially because of the appreciation of Bitcoin, which had an incredible peak in 2018 that was only reached and surpassed by the end of 2020. These alternative assets are traded worldwide in various *exchanges*, private platforms that bare similarities to traditional stock and futures exchanges, like connecting buyers and sellers, but also some pecularities, like unlimited trading 24 hours a day every day of the year, which increases the amount of data per day, since negotiation is not limited to a specific time frame of each day. From 2018 many new digital currencies were introduced, each with a different purpose. These have also had noteworthy appreciation in general, with the total market cap of 50 most valued cryptocurrencies having reached over 1,9 trillion dollars ^[Source: Coinmarketcap, in September 19, 2021]. These higher returns when compared to traditional assets, however, are attained only by the increased volatility that predominates in this market.
+
+This study aims to verify if this additional volatility is a significant factor in determining cryptocurrencies' returns and, simultaneously, if there are benefits to using high frequency data for the covariance matrix estimation, instead of a daily one.
+
+In Section 2, a literature review about the matter is introduced, Section 3 briefly describes the data set, Section 4 presents the empirical methodology applied in this work, Section 5 presents the obtained results and finally, Section 6 concludes.
+
+## 2. Literature Review
+
+## 3. Data Description
+
+The data used in this work consists of eighteen different cryptocurrency minute-by-minute price series obtained from Binance ^[https://www.binance.com/] and negotiated in this  exchange, which is currently the largest exchange in the world in terms of daily trading volume of cryptocurrencies ^[Source: CoinMarketCap, at https://coinmarketcap.com/rankings/exchanges/]. It is also one of the world leaders in terms of number of "Markets", where a "Market" is defined as the pair of currencies that are being traded.
+
+These cryptocurrencies are listed in Table 3.1, along with each series' initial dates available through Binance's API and its number of observations. All series are in a minute-by-minute basis, with the longest one, Bitcoin (BTC), having 2,051,079 observations, and the shortest one, Filecoin (FIL), 392,166 observations.
+
+From this minute-by-minute data set, 5-min closing prices series were constructed, which were then used to compute 5-min realized returns, $r_{i,\ t}$, realized variances, $RV_{i,\ t}$, and realized volatilities, $RVOL_{i,\ t}$ for each $i$ series, according to the formulas that will be presented in Section 4.1. Summary statistics for these measures for each series can be found in Appendix 1.
+
+At the same time, a daily closing prices data set is also constructed, which will be used for the GARCH computation, for comparison purposes.
+
+```{r}
+path <- "C:/Users/rodri/OneDrive/Documents/Academics/Trabalho de Conclusão de Curso/tcc/Print/"
+readr::read_rds(paste0(path, "table311.rds"))
+```
+
+## 4. Methodology
+
+The methodology used in this study combines realized measures, which are presented in Section 4.1, applied to real series, i.e. the cryptocurrencies that make up the initial data set, but also to fictitious series, that are created trough the assets' weighting techniques described in Section 4.2, constituting the final data set. At the same time, a GARCH volatility estimate is computed, according to what is depicted in Secion 4.3. Lastly, with this final data set and the GARCH estimates, two Fama-MacBeth regressions, as presented in Section 4.4, are computed.
+
+### 4.1. Realized Mesures
+
+For the purposes of this study, individual asset log returns are computed from the sum of the 5-min log returns for each cryptocurrency $i$, according to the formula below.
+
+$$r_{i,\ t} = \sum_{j = 1}^{m} r_{i,\ t - 1 + j n}$$
+where $t$ represents a day, $n$ is a fraction of a trading session associated with the sampling frequency (since 5-min returns are being used and there are 1440 minutes in one day, $n = \frac{1}{\frac{1440}{5}} = \frac{1}{288}$) and $m$ represents the amount of observations in on day ($m = \frac{1}{n} = 288$).
+
+$$RV_{i,\ t} = \sum_{j = 1}^{m} r_{i,\ t - 1 + j n}^{2}$$
+$$RVOL_{i,\ t} = \sqrt{RV_{i, t}}$$
+### 4.2. Weighting and Market Estimates Methods
+
+
+### 4.3. GARCH Model
+
+
+### 4.4. Fama-MacBeth Regression
+
+
+
+
+## Results
+
+
+
+
+
+## Conclusion
+
+
+
+
+
+## Appendix 1: series' summary statistics
+
+Table 1.1: $r_{i,\ t}$ summary statistics
+```{r}
+options(scipen = 10000)
+path <- "C:/Users/rodri/OneDrive/Documents/Academics/Trabalho de Conclusão de Curso/tcc/Print/"
+readr::read_rds(paste0(path, "tablea13.rds"))
+```
+
+Table 1.2: $RV_{i,\ t}$ summary statistics
+```{r}
+options(scipen = 10000)
+path <- "C:/Users/rodri/OneDrive/Documents/Academics/Trabalho de Conclusão de Curso/tcc/Print/"
+readr::read_rds(paste0(path, "tablea11.rds"))
+```
+
+Table 1.3: $RVOL_{i,\ t}$ summary statistics
+```{r}
+options(scipen = 10000)
+path <- "C:/Users/rodri/OneDrive/Documents/Academics/Trabalho de Conclusão de Curso/tcc/Print/"
+readr::read_rds(paste0(path, "tablea12.rds"))
+```
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
