@@ -38,9 +38,10 @@ gazer1 <- ini_crypto[, c(2, 4, 5, 6)]
 gazer1 <- gazer1 %>% 
   select(name, coin, date, nobs)
 
-### NA's analysis ###
 # Load data set
 all_data <- readr::read_rds('Data/all_data.rds')
+
+
 
 # Complete implicitly missing observations
 cdata <- all_data %>%
@@ -71,6 +72,8 @@ cdata <- readr::read_rds("Data/cdata.rds")
 nas <- t(cdata %>% summarise_if(is.numeric, ~sum(is.na(.x)))) - 
   (t(cdata %>% summarise_if(is.numeric, ~which(is.na(.x) == FALSE)[1])) - 1)
 
+rm(cdata)
+
 gazer1 <- gazer1 %>% 
   mutate(nas = as.vector(nas),
          nobs = 1430 * 1440 - as.vector(nas),
@@ -78,6 +81,8 @@ gazer1 <- gazer1 %>%
   # select(name, coin, date, nobs, nas, perc_nas) %>% 
   rename(Name = name, Acronym = coin, `Initial Date` = date,
          N = nobs, NAs = nas, `% NAs` = perc_nas)
+
+readr::write_rds(gazer1, file = "Print/table3.1.rds")
 
 stargazer::stargazer(gazer1, summary = F)
 
@@ -120,11 +125,28 @@ readr::write_rds(rvs, file = 'Data/rvs.rds')
 # Read RDS
 rvs <- readr::read_rds(file = 'Data/rvs.rds')
 
+# Replace 0 for NA
 rvs[rvs == 0] = NA
 
-stargazer::stargazer(as.data.frame(rvs %>% select(-date)), summary = TRUE)
+stats <- list(
+  min  = ~min(.x, na.rm = T),
+  med  = ~median(.x, na.rm = T),
+  mean = ~mean(.x, na.rm = T),
+  max  = ~max(.x, na.rm = T),
+  var  = ~var(.x, na.rm = T)
+)
 
-rm(rvs)
+tablea11 <- rvs %>%
+  select(-date) %>% 
+  summarise(across(everything(), stats, .names = "{.fn}_{.col}")) %>% 
+  pivot_longer(cols = everything(), values_to = "value") %>% 
+  separate(col = name, into = c("m", "cur"), sep = "_") %>% 
+  pivot_wider(names_from = m, values_from = value) %>% 
+  select(cur, min, med, mean, max, var)
+
+readr::write_rds(tablea11, file = "Print/tablea11.rds")
+
+rm(tablea11, rvs)
 
 
 
@@ -145,9 +167,17 @@ rvols <- readr::read_rds(file = 'Data/rvols.rds')
 
 rvols[rvols == 0] = NA
 
-stargazer::stargazer(as.data.frame(rvols %>% select(-date)), summary = TRUE)
+tablea12 <- rvols %>%
+  select(-date) %>% 
+  summarise(across(everything(), stats, .names = "{.fn}_{.col}")) %>% 
+  pivot_longer(cols = everything(), values_to = "value") %>% 
+  separate(col = name, into = c("m", "cur"), sep = "_") %>% 
+  pivot_wider(names_from = m, values_from = value) %>% 
+  select(cur, min, med, mean, max, var)
 
-rm(rv, rvols)
+readr::write_rds(tablea12, file = "Print/tablea12.rds")
+
+rm(rv, rvols, tablea12)
 
 
 
@@ -166,7 +196,15 @@ rets <- readr::read_rds(file = 'Data/rets.rds')
 
 rets[rets == 0] = NA
 
-stargazer::stargazer(as.data.frame(rets %>% select(-date)), summary = TRUE)
+tablea13 <- rets %>%
+  select(-date) %>% 
+  summarise(across(everything(), stats, .names = "{.fn}_{.col}")) %>% 
+  pivot_longer(cols = everything(), values_to = "value") %>% 
+  separate(col = name, into = c("m", "cur"), sep = "_") %>% 
+  pivot_wider(names_from = m, values_from = value) %>% 
+  select(cur, min, med, mean, max, var)
+
+readr::write_rds(tablea13, file = "Print/tablea13.rds")
 
 rm(rets, all_data, collapse_date)
 
@@ -191,7 +229,7 @@ covs_pca <- all_data %>%
          pca     = map2(.x = covs, .y = layout, .f = ~ princomp(.x[(1 : .y), (1 : .y)])),
          mkt_ret = map_dbl(.x = pca, .f = ~ factoextra::get_eig(.x)$eigenvalue[1]),
          weights = map2(.x = pca, .y = layout, 
-                        .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)],
+                        .f = ~ tibble(asset  = colnames(all_data)[2 : (.y + 1)],
                                       weight = factoextra::get_pca_var(.x)$contrib[1 : .y] / 100))) %>%
   select(-c(pca, data)) %>% 
   unnest(weights) %>% 
@@ -212,6 +250,19 @@ covs_pca %>%
 covs_pca %>% 
   select(-covs) %>% 
   readr::write_rds(file = "Data/pca_mkt.rds")
+
+# Daily covariance matrix
+cov_daily <- all_data %>%
+  lrets() %>% 
+  collapse_date(open_time, "day", sum, na.rm = TRUE) %>% 
+  # nest(data = -open_time) %>% # Nest according to day
+  slice_head(n = nrow(.) -1) %>% 
+  na_if(0) %>% 
+  # group_by(open_time) %>%
+  select(-open_time) %>% 
+  cov(use = "complete.obs")
+
+readr::write_rds(cov_daily, "Data/cov_daily.rds")  
 
 rm(list = ls())
 
