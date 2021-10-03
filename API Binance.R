@@ -7,6 +7,8 @@ rm(list = ls())
 base <- "https://api.binance.com/"
 coins <- c('BTC', 'ETH', 'LTC', 'XRP', 'COMP', 'BNB', 'ADA', 'DOGE', 'DOT', 'PNT',
            'LINK', 'BCH', 'UNI', 'XLM', 'FIL', 'EOS', 'SOL', 'MATIC')
+
+coins <- c('BTC', 'ETH', 'ADA', 'BNB', 'XRP', 'DOGE', 'LTC', 'ALGO', 'ATOM', 'MATIC')
 tickers <- paste0(coins, 'USDT')
 inidate <- '2017-08-01'
 enddate <- '2021-07-31'
@@ -52,7 +54,7 @@ for (j in 1 : length(tickers)){
 }
 
 path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-openxlsx::write.xlsx(ini_crypto, file = paste0(path, 'series_initial_dates.xlsx'))
+openxlsx::write.xlsx(ini_crypto, file = paste0(path, 'new_initial_dates.xlsx'))
 
 rm(binix, binraw, end_mths, ini_mths, ini_crypto, i, j, tickers, coins)
 
@@ -65,7 +67,7 @@ inidate <- '2017-08-01'
 enddate <- '2021-07-31'
 
 # Open initial dates
-ini_crypto <- as.data.frame(readxl::read_excel(paste0(path, 'series_initial_dates.xlsx')))
+ini_crypto <- as.data.frame(readxl::read_excel(paste0(path, 'new_initial_dates.xlsx')))[8:10,]
 
 # Create times for starting and ending ranges
 times_start <- c('00:00:00', '12:00:00')
@@ -74,7 +76,7 @@ times_end <- c('11:59:00', '23:59:00')
 # Loop through every series
 for (z in 1 : nrow(ini_crypto)){
   # Days range
-  days <- seq(as.Date(ini_crypto[z, 2]), as.Date(enddate), by = "days")
+  days <- seq(as.Date(ini_crypto[z, 3]), as.Date(enddate), by = "days")
   # Requests per day and total number of requests
   f <- 2
   N <- f * length(days)
@@ -158,9 +160,9 @@ for (z in 1 : nrow(ini_crypto)){
                        'quote_asset_vol', 'no_trades')
   # Save matrix
   path = 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
-  save(binix, file = paste0(path, 'binix_', ini_crypto[z, 5], '.RData'))
+  readr::write_rds(binix, file = paste0(path, ini_crypto[z, 2], '.rds'))
 
-  print(ini_crypto[z, 5])
+  print(ini_crypto[z, 2])
 }
 
 rm(list = ls())
