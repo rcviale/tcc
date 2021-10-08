@@ -16,7 +16,7 @@ for (z in 1 : nrow(ini_crypto)){
     as_tibble()
   # Convert timestamps to seconds UNIX and make all seconds = 0
   tmp <- tmp %>%
-    mutate(open_time = lubridate::as_datetime(open_time/1000 + 60) %>%
+    mutate(open_time = lubridate::as_datetime(open_time/1000) %>%
              lubridate::floor_date(unit = 'minutes')
     )
   # Save as RDS
@@ -25,7 +25,7 @@ for (z in 1 : nrow(ini_crypto)){
 
 # Function to unify all the series' closing prices in one tibble sorted by time
 source('R/unify.R')
-all_data <- unify(as.matrix(ini_crypto[, 2]), 'Data/', 'open_time')
+all_data <- unify(files = as.matrix(ini_crypto[, 2]), directory = 'Data/', col = 'open_time')
 colnames(all_data) <- c("open_time", as.matrix(ini_crypto[, 2]))
 all_data <- all_data %>% arrange(open_time) #FIXME
 all_data %>% slice_tail(n = 10)
@@ -35,13 +35,37 @@ readr::write_rds(all_data, file = 'Data/new_all_data.rds')
 
 
 
-# Data summary
-gazer1 <- ini_crypto[, c(2, 4, 5, 6)]
-gazer1 <- gazer1 %>% 
-  select(name, coin, date, nobs)
+#### Raw data analysis and summary statistics ####
+all_data <- readr::read_rds("Data/new_all_data.rds")
 
-# Load data set
-all_data <- readr::read_rds('Data/all_data.rds')
+# Summary Timestamps Statistics
+stats <- list(
+  obs  = ~length(.x),
+  min  = ~min(.x, na.rm = T),
+  med  = ~median(.x, na.rm = T),
+  mean = ~round(mean(.x, na.rm = T), digits = 2),
+  max  = ~max(.x, na.rm = T),
+  var  = ~round(var(.x, na.rm = T), digits = 2),
+  sd   = ~round(sd(.x, na.rm = T), digits = 2),
+  q1   = ~quantile(t(.x), na.rm = T)[2],
+  q3   = ~quantile(t(.x), na.rm = T)[4]
+)
+
+difs <- all_data$open_time %>% 
+  diff() - 1 #%>% e
+difs <- difs %>% 
+  as_tibble() %>% 
+  filter(value != 0) %>% 
+  summarise(across(everything(), stats, .names = "{.fn}")) %>% 
+  t()
+
+hole_summ_table <- tibble(Metric = c("Ocurrences", "Minimum", "Median", "Mean", "Maximum", "Variance", 
+                  "Standard Deviation", "1st Quantile", "3rd Quantile"),
+       Value  = as.vector(difs))
+
+readr::write_rds(hole_summ_table, "Print/hole_summ_table.rds")
+
+rm(stats, difs, hole_summ_table)
 
 
 
@@ -58,35 +82,79 @@ cdata <- all_data %>%
                                              min = as.numeric(minute))) %>% 
   select(-year, -month, -day, -hour, -minute, -second) %>%
   select(datetime, everything()) %>% 
+  arrange(datetime) %>%
   dplyr::filter(datetime >= as.Date('2017-09-01'), datetime < as.Date('2021-08-01')) %>% 
   arrange(datetime, BTC) %>% 
   distinct(datetime, .keep_all = TRUE)
 
+rm(all_data)
+
 # Save RDS
 readr::write_rds(cdata, file = "Data/cdata.rds")
+
+# Fill data and save
+cdata %>% fill(2:11, .direction = "down") %>% 
+  readr::write_rds("Data/fdata.rds")
+
+# Take last observation of filled data before working sample starts
+readr::read_rds("Data/fdata.rds") %>% 
+  filter(datetime >= as.Date("2019-07-31"), datetime < as.Date("2019-08-01")) %>% 
+  slice_tail(n = 5) -> last
+
+# Restrict data, fill and save
+readr::read_rds("Data/cdata.rds") %>%
+  filter(datetime >= as.Date("2019-08-01"), datetime < as.Date("2021-08-01")) %>% 
+  fill(2:11, .direction = "down") %>%
+  rbind(last) %>% 
+  arrange(datetime) %>% 
+  readr::write_rds("Data/rest_fdata.rds")
+
+rm(list = ls())
 
 
 
 # Load complete data
 cdata <- readr::read_rds("Data/cdata.rds")
+ini_crypto <- readxl::read_excel(paste0('new_initial_dates.xlsx'))
 
-# Amount of NAs in the middle of each series
-nas <- t(cdata %>% summarise_if(is.numeric, ~sum(is.na(.x)))) - 
-  (t(cdata %>% summarise_if(is.numeric, ~which(is.na(.x) == FALSE)[1])) - 1)
+# Summary table of original sample
+full_summ_table <- ini_crypto %>% 
+  mutate(nas      = as.vector(t(cdata %>% summarise_if(is.numeric, ~sum(is.na(.x)))) - 
+                                (t(cdata %>% summarise_if(is.numeric, ~which(is.na(.x) == FALSE)[1])) - 1)),
+         nobs     = cdata %>% summarise_if(is.numeric, ~sum(is.na(.x) == FALSE)) %>% t() %>% as.vector(),
+         perc_nas = round(nas / nobs * 100, digits = 2),
+         Name     = c("Bitcoin", "Ethereum", "Binance Coin", "Litecoin", "Cardano",
+                  "Ripple", "Cosmos", "Polygon", "Algorand", "Dogecoin")) %>%
+  rename(Acronym = coin, `Initial Date` = `start date`,
+         N = nobs, NAs = nas, `% NAs` = perc_nas) %>% 
+  select(-market) %>% 
+  select(Name, everything())
 
-rm(cdata)
+readr::write_rds(full_summ_table, file = "Print/full_summ_table.rds")
 
-gazer1 <- gazer1 %>% 
-  mutate(nas = as.vector(nas),
-         nobs = 1430 * 1440 - as.vector(nas),
-         perc_nas = round(as.vector(nas) / nobs * 100, digits = 2)) %>%
-  # select(name, coin, date, nobs, nas, perc_nas) %>% 
-  rename(Name = name, Acronym = coin, `Initial Date` = date,
-         N = nobs, NAs = nas, `% NAs` = perc_nas)
+rm(full_summ_table)
 
-readr::write_rds(gazer1, file = "Print/table3.1.rds")
 
-stargazer::stargazer(gazer1, summary = F)
+
+# Summary table of restricted completed sample
+cdata <- cdata %>% 
+  filter(datetime >= as.Date("2019-08-01"), datetime < as.Date("2021-08-01"))
+
+rest_summ_table <- ini_crypto %>% 
+  mutate(nas      = as.vector(t(cdata %>% summarise_if(is.numeric, ~sum(is.na(.x)))) - 
+                                (t(cdata %>% summarise_if(is.numeric, ~which(is.na(.x) == FALSE)[1])) - 1)),
+         nobs     = cdata %>% summarise_if(is.numeric, ~sum(is.na(.x) == FALSE)) %>% t() %>% as.vector(),
+         perc_nas = round(nas / nobs * 100, digits = 2),
+         Name     = c("Bitcoin", "Ethereum", "Binance Coin", "Litecoin", "Cardano",
+                      "Ripple", "Cosmos", "Polygon", "Algorand", "Dogecoin")) %>%
+  rename(Acronym = coin, `Initial Date` = `start date`,
+         N = nobs, NAs = nas, `% NAs` = perc_nas) %>% 
+  select(-c(market, `Initial Date`)) %>% 
+  select(Name, everything())
+
+readr::write_rds(rest_summ_table, file = "Print/rest_summ_table.rds")
+
+rm(list = ls())
 
 
 
@@ -97,37 +165,30 @@ source('R/lrets.R')
 source('R/rv.R')
 source('R/collapse_date.R')
 
-path <- "Data/new_all_data.rds"
-
-# Load raw data set
-all_data <- readr::read_rds(path)
+# Load restricted data set
+all_data <- readr::read_rds("Data/rest_fdata.rds")
 
 # Convert series to different time frequency
 all_data <- all_data %>%
-  collapse_time(open_time, 5, tail, 1) # 5min, closing
-
-npath <- "Data/new_all_data5.rds"
+  collapse_time(datetime, 5, tail, 1) %>% # 5min, tail = closing
+  slice_head(n = nrow(.) - 1)
 
 # Save RDS for the future
-readr::write_rds(all_data, file = npath)
+readr::write_rds(all_data, file = "Data/new_all_data5.rds")
 
 rm(collapse_time)
 
 
 
 # Load specific data set
-all_data <- readr::read_rds(npath)
-
-
+all_data <- readr::read_rds("Data/new_all_data5.rds")
 
 # Tibble with daily returns
 rets <- all_data %>% 
   lrets() %>% 
-  collapse_date(open_time, "day", sum, na.rm = TRUE) %>% 
-  slice_head(n = nrow(.) - 1) %>% 
-  rename(date = open_time)
-
-rets[rets == 0] = NA
+  slice_tail(n = nrow(.) - 1) %>% 
+  collapse_date(datetime, "day", sum, na.rm = TRUE) %>% 
+  rename(date = datetime)
 
 # Save returns RDS
 readr::write_rds(rets, file = 'Data/rets.rds')
@@ -135,27 +196,35 @@ readr::write_rds(rets, file = 'Data/rets.rds')
 # Read RDS
 rets <- readr::read_rds(file = 'Data/rets.rds')
 
-tablea13 <- rets %>%
+stats <- list(
+  min  = ~min(.x, na.rm = T),
+  med  = ~median(.x, na.rm = T),
+  mean = ~mean(.x, na.rm = T),
+  max  = ~max(.x, na.rm = T),
+  var  = ~var(.x, na.rm = T),
+  sd   = ~sd(.x, na.rm = T),
+  q1   = ~quantile(t(.x), na.rm = T)[2],
+  q3   = ~quantile(t(.x), na.rm = T)[4]
+)
+
+rets %>%
   select(-date) %>% 
   summarise(across(everything(), stats, .names = "{.fn}_{.col}")) %>% 
   pivot_longer(cols = everything(), values_to = "value") %>% 
   separate(col = name, into = c("m", "cur"), sep = "_") %>% 
   pivot_wider(names_from = m, values_from = value) %>% 
-  select(cur, min, med, mean, max, var)
+  select(cur, min, med, mean, max, var, sd, q1, q3) %>% 
+  readr::write_rds(file = "Print/tablea13.rds")
 
-readr::write_rds(tablea13, file = "Print/tablea13.rds")
-
+rm(rets, lrets)
 
 
 # Tibble with Realized Variances
 rvs <- all_data %>%
   rv() %>%
-  collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
-  slice_head(n = nrow(.) -1) %>% # Tira a última linha
-  rename(date = open_time)
-
-# Replace 0 for NA
-rvs[rvs == 0] = NA
+  slice_tail(n = nrow(.) - 1) %>% 
+  collapse_date(datetime, 'day', sum, na.rm = TRUE) %>% 
+  rename(date = datetime)
 
 # Save RVs RDS
 readr::write_rds(rvs, file = 'Data/rvs.rds')
@@ -163,38 +232,27 @@ readr::write_rds(rvs, file = 'Data/rvs.rds')
 # Read RDS
 rvs <- readr::read_rds(file = 'Data/rvs.rds')
 
-stats <- list(
-  min  = ~min(.x, na.rm = T),
-  med  = ~median(.x, na.rm = T),
-  mean = ~mean(.x, na.rm = T),
-  max  = ~max(.x, na.rm = T),
-  var  = ~var(.x, na.rm = T)
-)
-
-tablea11 <- rvs %>%
+rvs %>%
   select(-date) %>% 
   summarise(across(everything(), stats, .names = "{.fn}_{.col}")) %>% 
   pivot_longer(cols = everything(), values_to = "value") %>% 
   separate(col = name, into = c("m", "cur"), sep = "_") %>% 
   pivot_wider(names_from = m, values_from = value) %>% 
-  select(cur, min, med, mean, max, var)
+  select(cur, min, med, mean, max, var, sd, q1, q3) %>% 
+  readr::write_rds(file = "Print/tablea11.rds")
 
-readr::write_rds(tablea11, file = "Print/tablea11.rds")
-
-rm(tablea11, rvs)
+rm(rvs)
 
 
 
 # Tibble with Realized Volatilities
 rvols <- all_data %>%
   rv() %>%
-  collapse_date(open_time, 'day', sum, na.rm = TRUE) %>% 
-  slice_head(n = nrow(.) -1) %>% # Tira a última linha
+  slice_tail(n = nrow(.) - 1) %>% 
+  collapse_date(datetime, 'day', sum, na.rm = TRUE) %>% 
   # Take square root (volatility)
   modify_if(is.numeric, .f = ~sqrt(.x)) %>% 
-  rename(date = open_time)
-
-rvols[rvols == 0] = NA
+  rename(date = datetime)
 
 # Save Rvols RDS
 readr::write_rds(rvols, file = 'Data/rvols.rds')
@@ -202,36 +260,35 @@ readr::write_rds(rvols, file = 'Data/rvols.rds')
 # Read RDS
 rvols <- readr::read_rds(file = 'Data/rvols.rds')
 
-tablea12 <- rvols %>%
+rvols %>%
   select(-date) %>% 
   summarise(across(everything(), stats, .names = "{.fn}_{.col}")) %>% 
   pivot_longer(cols = everything(), values_to = "value") %>% 
   separate(col = name, into = c("m", "cur"), sep = "_") %>% 
   pivot_wider(names_from = m, values_from = value) %>% 
-  select(cur, min, med, mean, max, var)
+  select(cur, min, med, mean, max, var, sd, q1, q3) %>% 
+  readr::write_rds(file = "Print/tablea12.rds")
 
-readr::write_rds(tablea12, file = "Print/tablea12.rds")
+rm(list = ls())
 
 
 
 #### Covariance Matrix and PCA Market Estimates #####
 # Load RDS with specific time frequency
-npath <- "Data/new_all_data5.rds"
-all_data <- readr::read_rds(npath)
+all_data <- readr::read_rds("Data/new_all_data5.rds")
+source('R/lrets.R')
 
 # Take log returns, compute PCA weights and 1st component series
 covs_pca <- all_data %>%
-  #slice_tail(n = 2880) %>% # Slice last obs of data
-  #slice_head(n = 2880) %>%
   lrets() %>% # Take log rets
-  mutate(date = lubridate::as_date(open_time)) %>% # Only day column
-  select(-open_time) %>%
+  slice_tail(n = nrow(.) - 1) %>% # Take out first row
+  mutate(date = lubridate::as_date(datetime)) %>% # Only day column
+  select(-datetime) %>%
   select(date, everything()) %>% 
   nest(data = -date) %>% # Nest according to day
-  slice_head(n = nrow(.) -1) %>% # Tira a última linha
   mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
          layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
-         pca     = map2(.x = covs, .y = layout, .f = ~ princomp(.x[(1 : .y), (1 : .y)])),
+         pca     = map(.x = data, .f = ~ princomp(na.omit(.x))),
          mkt_ret = map_dbl(.x = pca, .f = ~ factoextra::get_eig(.x)$eigenvalue[1]),
          weights = map2(.x = pca, .y = layout, 
                         .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)],
@@ -256,18 +313,16 @@ covs_pca %>%
   select(-covs) %>% 
   readr::write_rds(file = "Data/pca_mkt.rds")
 
-# Daily covariance matrix
-cov_daily <- all_data %>%
-  lrets() %>% 
-  collapse_date(open_time, "day", sum, na.rm = TRUE) %>% 
-  # nest(data = -open_time) %>% # Nest according to day
-  slice_head(n = nrow(.) -1) %>% 
-  na_if(0) %>% 
-  # group_by(open_time) %>%
-  select(-open_time) %>% 
-  cov(use = "complete.obs")
 
-readr::write_rds(cov_daily, "Data/cov_daily.rds")  
+
+# Full period covariance matrix
+full_cor <- all_data %>%
+  lrets() %>% 
+  slice_tail(n = (nrow(.) - 1)) %>%
+  select(-datetime) %>% 
+  cor(use = "pairwise.complete.obs")
+
+readr::write_rds(full_cor, "Print/full_cor.rds")  
 
 rm(list = ls())
 
@@ -313,7 +368,7 @@ mkt_ret <- mkt_est(rets_long, weights_long, ret) %>%
 # Save Market Cap based Returns RDS
 readr::write_rds(mkt_ret, "Data/mkt_ret.rds")
 
-rm(mkt_est, mkt_ret, mkt_rvol, rets_long, rvols, weights, weights_long, covs)
+rm(list = ls())
 
 
 #### Create daily data tibbles ####
@@ -327,7 +382,7 @@ pca_mkt <- readr::read_rds("Data/pca_mkt.rds")
 gspec <- rugarch::ugarchspec(distribution.model = "std", mean.model = list(armaOrder = c(0, 0)),
                              variance.model = list(model = "sGARCH", garchOrder = c(1, 1)))
 cap_garch <- rugarch::ugarchfit(gspec, mkt_ret$mkt_ret)@fit$sigma
-pca_garch <- rugarch::ugarchfit(gspec, pca_mkt$mkt_ret, solver = 'hybrid')@fit$sigma
+pca_garch <- rugarch::ugarchfit(gspec, pca_mkt$mkt_ret)@fit$sigma
 
 rm(gspec)
 
@@ -372,13 +427,13 @@ daily_data_pca <- readr::read_rds("Data/daily_data_pca.rds")
 daily_data_pca_garch <- readr::read_rds("Data/daily_data_pca_garch.rds")
 
 # Load pre Fama-MacBeth regression functions
-source("R/pre_fmb.R")
+# source("R/pre_fmb.R")
 
 # Check for any existing zeroes after each series start dates
-daily_data %>% pre_fmb
+# daily_data %>% pre_fmb
 # If returns FALSE, proceed with Fama-MacBeth regression
 
-rm(pre_fmb)
+# rm(pre_fmb)
 
 # Load Fama-MacBeth regression functions
 source("R/fmb1.R")
@@ -393,7 +448,7 @@ b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
 
 # Compute second step regressions
-regs2 <- daily_data %>% fmb2(beta1 = b1, beta2 = b2, K = 10)
+regs2 <- daily_data %>% fmb2(beta1 = b1, beta2 = b2)
 
 # t test for the coefficient of interest
 cap_t <- regs2 %>% fmb_t("beta1", "beta2")
@@ -408,7 +463,7 @@ b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
 
 # Compute second step regressions
-regs2 <- daily_data_pca %>% fmb2(beta1 = b1, beta2 = b2, K = 10)
+regs2 <- daily_data_pca %>% fmb2(beta1 = b1, beta2 = b2)
 
 # t test for the coefficient of interest
 pca_t <- regs2 %>% fmb_t("beta1", "beta2")

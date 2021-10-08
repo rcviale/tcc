@@ -61,20 +61,20 @@ rm(binix, binraw, end_mths, ini_mths, ini_crypto, i, j, tickers, coins)
 
 
 ##### Start downloading multiple series #####
-path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\'
+path <- 'C:\\Users\\rodri\\OneDrive\\Documents\\Academics\\Trabalho de Conclusão de Curso\\tcc\\'
 base <- "https://api.binance.com/"
-inidate <- '2017-08-01'
-enddate <- '2021-07-31'
+inidate <- '2017-09-01'
+enddate <- '2017-09-02'
 
 # Open initial dates
-ini_crypto <- as.data.frame(readxl::read_excel(paste0(path, 'new_initial_dates.xlsx')))[8:10,]
+ini_crypto <- as.data.frame(readxl::read_excel(paste0(path, 'new_initial_dates.xlsx')))
 
 # Create times for starting and ending ranges
 times_start <- c('00:00:00', '12:00:00')
 times_end <- c('11:59:00', '23:59:00')
 
 # Loop through every series
-for (z in 1 : nrow(ini_crypto)){
+for (z in 1 : 1){
   # Days range
   days <- seq(as.Date(ini_crypto[z, 3]), as.Date(enddate), by = "days")
   # Requests per day and total number of requests
@@ -200,8 +200,8 @@ binraw <- httr::GET(url = "https://api.binance.com/", path = '/api/v3/klines',
               query = list(
                 symbol = 'BTCUSDT',
                 interval = '1m',
-                startTime = '1504710000000',
-                endTime = '1504753140000',
+                startTime = start[1, 1],
+                endTime = end[1, 1],
                 limit = as.integer(1000)
               ))
 

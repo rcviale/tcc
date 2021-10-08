@@ -22,7 +22,7 @@ library(knitr)
 
 A alocação de carteiras de investimento de maneira assertiva é uma tarefa de difícil execução, uma vez que envolve invariavelmente uma pluralidade de riscos. O risco de mercado em particular nunca pode ser completamente eliminado, porém, muito se discute em termos de seu controle e minimização, principalmente através de diversificação, meio esse que depende do mapeamento correto das correlações entre os ativos. Portanto, torna-se necessária, em um processo de construção de carteiras visando a otimização de portfólios, não só a estimação da matriz de covariâncias de maneira assertiva, mas também de medidas de volatilidade precisas.
 
-Um método muito comum e popularizado na literatura que trata da previsão de volatilidade é o GARCH (*General Autoregressive Conditional Heteroskedasticity*), introduzido por \citeonline{Bollersev86} e que é empregado em retornos diários. GARCH-type models, however, tend to overpredict volatility, as documented by \citeonline{Nomikos11} when dealing with petroleum futures' time series. These models, therefore, present a slow response after a volatility shock passes, taking time for the estimates to go down.
+Um método muito comum e popularizado na literatura que trata da previsão de volatilidade é o GARCH (*General Autoregressive Conditional Heteroskedasticity*), introduzido por @Bollersev86 e que é empregado em retornos diários. GARCH-type models, however, tend to overpredict volatility, as documented by @Nomikos11 when dealing with petroleum futures' time series. These models, therefore, present a slow response after a volatility shock passes, taking time for the estimates to go down.
 
 With the growing amount, availability and managebility of data at higher frequencies (intraday) than the daily one, a richer sample covariance matrix can be estimated, leading ultimately to the construction of a matrix based on realized measures. 
 
@@ -36,16 +36,16 @@ In Chapter \@ref(litrev), a literature review about the matter is introduced, Ch
 
 # Data Description {#data}
 
-The data used in this work consists of eighteen different cryptocurrency minute-by-minute price series obtained from Binance's API ^[Source: https://api.binance.com/] and negotiated in this  exchange, which is currently the largest exchange in the world in terms of daily trading volume of cryptocurrencies ^[Source: CoinMarketCap, at https://coinmarketcap.com/rankings/exchanges/]. It is also one of the world leaders in terms of number of "Markets", where a "Market" is defined as the pair of currencies that are being traded.
+The data used in this work consists of ten different cryptocurrency minute-by-minute price series obtained from Binance's API ^[Source: https://api.binance.com/] and negotiated in this exchange, which is currently the largest one in the world in terms of daily trading volume of cryptocurrencies ^[Source: CoinMarketCap, at https://coinmarketcap.com/rankings/exchanges/]. It is also one of the world leaders in terms of number of "markets", where a "market" is defined as the pair of currencies that are being traded.
 
-These cryptocurrencies are listed in Table \@ref(tab:inidates), along with each series' initial dates available through Binance's API and its number of observations. All series are in a minute-by-minute basis, with the longest one, Bitcoin (BTC), having 2,051,079 observations, and the shortest one, Filecoin (FIL), 392,166 observations. The last date for all series is July 31, 2021. 
-
-From this minute-by-minute data set, 5-min closing prices series were constructed, which were then used to compute 5-min realized returns, $r_{i,\ t}$, realized variances, $RV_{i,\ t}$, and realized volatilities, $RVOL_{i,\ t}$ for each $i$ series, according to the formulas that will be presented in Section \@ref(measures). Summary statistics for these measures for each series can be found in Appendix \@ref(asumm).
+These cryptocurrencies are listed in Table \@ref(tab:inidates), along with each series' initial dates available through Binance's API and its number of observations. All series are in a minute-by-minute basis, with the longest one, Bitcoin (BTC), having 2,051,078 observations, and the shortest one, Filecoin (FIL), 392,166 observations. The last date for all series is July 31, 2021. 
 
 ```{r inidates}
 path <- "C:/Users/rodri/OneDrive/Documents/Academics/Trabalho de Conclusão de Curso/tcc/Print/"
 kable(readr::read_rds(paste0(path, "table311.rds")), caption = "Series' Initial Dates, Number of Observations and NAs")
 ```
+
+From this minute-by-minute data set, 5-min closing prices series were constructed, which were then used to compute 5-min realized returns, $r_{i,\ t}$, realized variances, $RV_{i,\ t}$, and realized volatilities, $RVOL_{i,\ t}$ for each $i$ series, according to the formulas that will be presented in Section \@ref(measures). Summary statistics for these measures for each series can be found in Appendix \@ref(asumm).
 
 At the same time, a daily closing prices data set is constructed, which will be used for the GARCH computation, for comparison purposes.
 
@@ -64,17 +64,7 @@ For the purposes of this study, individual asset log returns are computed from t
 r_{i,\ t} = \sum_{j = 1}^{m} r_{i,\ t - 1 + j n}\\
 \end{equation}
 
-\begin{equation}
-(\#eq:r)
-R_t = \begin{bmatrix}
-r_{1,\ t}\\
-r_{2,\ t}\\
-... \\
-r_{K,\ t}
-\end{bmatrix}
-\end{equation}
-
-where $t$ represents a day, $n$ is a fraction of a trading session associated with the sampling frequency (since 5-min returns are being used and there are 1440 minutes in one day, $n = \frac{1}{(1440/5)} = \frac{1}{288}$), $m$ represents the amount of observations in on day ($m = \frac{1}{n} = 288$) and $R_t$ denotes a vector of returns of $K$ assets for period $t$.
+where $t$ represents a day, $n$ is a fraction of a trading session associated with the sampling frequency (since 5-min returns are being used and there are 1440 minutes in one day, $n = \frac{1}{(1440/5)} = \frac{1}{288}$) and $m$ represents the amount of observations in on day ($m = \frac{1}{n} = 288$).
 
 Following the conclusion from Liu et al. (2015) that it is very difficult to significantly beat a simple 5-minute realized variance ($RV$) when it comes to price variation estimators constructed from high-frequency data, this realized measure is therefore taken for the analysis conducted in this study. This estimator consists of the sum of squared 5-minute returns for each day $t$ and asset $i$, as in the formula below.
 
@@ -94,15 +84,15 @@ RVOL_{i,\ t} = \sqrt{RV_{i, t}}
 
 ## Synthetic Market Estimates and Weighting Methods {#syntwei}
 
-In order to create synthetic indices that are able to represent the the overall cryptocurrencies market, two methods are employed as weighting factor: the daily market capitalization for each asset and the weights derived from the application of the Principal Component Analysis (PCA).
+In order to create synthetic indices that are able to represent the the overall cryptocurrency market, it becomes necessary to weight the assets in order to create this index. Two methods, therefore, are employed as weighting factors: the daily market capitalization for each asset and the weights derived from the application of the Principal Component Analysis (PCA).
 
 ### Estimation Based on Market Capitalization
 
-From the daily market capitalization $MC$ series', a vector of weights $W_t^{(MC)}$ is constructed for each period $t$ such that
+From the daily market capitalization series, weights $w_{i,\ t}$ are estimated such that
 
 \begin{equation}
 (\#eq:wi)
-w_{i,\ t} = \frac{MC_{i, t}}{\sum_{j = 1}^K MC_{j, t}}\\
+w_{i,\ t}^{(MC)} = \frac{MC_{i, t}}{\sum_{j = 1}^K MC_{j, t}}\\
 \end{equation}
 
 \begin{equation}
@@ -116,31 +106,75 @@ w_{K,\ t} \\
 \end{bmatrix}
 \end{equation}
 
-where $K$ is the last asset in the study.
+where $MC_{i,\ t}$ is the market capitalization for asset $i$ in period $t$.
 
-These weights are then combined with the assets' returns computed previously to obtain an estimate of \emph{market} returns $R_{m,\ t}^{(MC)}$ such that
+These weights are then combined with the assets' returns in equation \@ref(eq:ri), computed previously to obtain an estimate of *market* returns $R_{m,\ t}^{(MC)}$ such as
 
 \begin{equation}
-(\#eq:rm)
-R_{m,\ t}^{(MC)} = W_{MC,\ t}^T \times R_t.
+(\#eq:caprm)
+r_{m,\ t}^{(MC)} = \sum_{i = 1}^K (r_{i,\ t} w_{i,\ t})\\
 \end{equation}
 
-Testing the market's volatility as a driver of returns is also one of the goals of this work, hence to obtain an estimate based on 5-minute data, the sample covariance matrix is first computed, as in equation \@ref(eq:covix).
-
-From the assets' returns series, the sample covariance matrix is estimated for each day $t$
 \begin{equation}
-(\#eq:covix)
-S_t^{(5min)} = 
+(\#eq:capRm)
+R_{m}^{(MC)} =
+\begin{bmatrix}
+r_{m,\ 1}^{(MC)} \\
+r_{m,\ 2}^{(MC)} \\
+... \\
+r_{m,\ T}^{(MC)}
+\end{bmatrix} 
+=
+\begin{bmatrix}
+\sum_{i = 1}^K (r_{i,\ 1} w_{i,\ 1}) \\
+\sum_{i = 1}^K (r_{i,\ 2} w_{i,\ 2}) \\
+... \\
+\sum_{i = 1}^K (r_{i,\ T} w_{i,\ T})
+\end{bmatrix}.
+\end{equation}
+
+This vector will be the first regressor in the Fama-MacBeth estimation.
+
+Testing the market's volatility as a driver of returns is the main goal of this work, however, obtaining an estimate for the market's volatility is quite more tricky. The variance can not be weighted in the same fashion as what was done for assets' returns, because of the covariance between assets ^[Explain why variance can't be multiplied and summed up.], and also, there is no 5-minute market returns series (only daily), where the sum of squared returns could be taken, similarly as to what was done with the individual cryptocurrencies. To obtain an estimate for the market's 5-minute realized variance, therefore, firstly the 5-minute sample covariance matrix for each period must be estimated
+
+\begin{equation}
+(\#eq:rcovix)
+RCov_{t} = 
 \begin{bmatrix} 
-s_{1,\ 1} & s_{1,\ 2} & ... & s_{1,\ K}\\
-s_{2,\ 1} & s_{2,\ 2} & ... & s_{2,\ K}\\
+s_{11,\ t}^2 & s_{12,\ t}^2 & ... & s_{1K,\ t}^2\\
+s_{21,\ t}^2 & s_{22,\ t}^2 & ... & s_{2K,\ t}^2\\
 ... & ... & ... & ...\\
-s_{K,\ 1} & s_{K,\ 2} & ... & s_{K,\ K}\\
+s_{K1,\ t}^2 & s_{K2,\ t}^2 & ... & s_{KK,\ t}^2\\
 \end{bmatrix},
 \end{equation}
-where $K$ is the number of assets or, in this study, $K = 18$.
 
+where $s_{ij,\ t}^2$ denotes the 5-minute sample covariance between assets $i$ and $j$ in day $t$. This matrix can then be simply weighted by the $W_{MC,\ t}$ vectors obtained from the assets' market capitalization in equation \@ref(eq:wmc) in the following way.
 
+\begin{equation}
+(\#eq:wcovix)
+RV_{m,\ t}^{(MC)} = W_{MC,\ t}^T \times RCov_{t} \times W_{MC,\ t},
+\end{equation}
+
+where superscript $T$ is denotes the transposed of the vector in question. The volatility for each period $t$ is therefore obtained simply by taking square root of the obtained realized variance estimate: 
+
+\begin{equation}
+(\#eq:caprvol)
+RVOL_{m,\ t}^{(MC)} = \sqrt{RV_{m,\ t}^{(MC)}}
+\end{equation}
+
+### Estimation Based on Principal Component Analysis
+
+An alternative method used to obtain an estimate for the market's returns and volatility is through Principal Component Analysis (PCA), introduced by @Pearson1901. In a context of closely related variables such as this data set (see the series' correlation matrix in Appendix \@ref(acor), @Brooks19 noted that PCA can be particularly useful, because it can transform the $K$ series into a new set of $K$ uncorrelated variables, by taking linear combinations of the original data set. In other terms, as Brooks presents
+
+\begin{array}{ccccccccc}
+(\#eq:pca)
+p_1  & = & \alpha_{1,\ 1} x_1 & + & \alpha_{1,\ 2} x_2\ & + & ... & + & \alpha_{1,\ K} x_K \\
+p_2  & = & \alpha_{2,\ 1} x_1 & + & \alpha_{2,\ 2} x_2\ & + & ... & + & \alpha_{2,\ K} x_K \\
+...  & = & ...                & + & ...                 & + & ... & + & ... \\
+p_K  & = & \alpha_{K,\ 1} x_1 & + & \alpha_{K,\ 2} x_2\ & + & ... & + & \alpha_{K,\ K} x_K \\
+\end{array}
+
+where $p_i$ and $x_i$, represent, respectively, the $i$ principal component and original variable, and $\alpha_{i,\ j}$ denotes the coefficient for variable $j$ in the principal component $i$.
 
 ## GARCH Model {#garch}
 
@@ -184,4 +218,23 @@ kable(readr::read_rds(paste0(path, "tablea11.rds")), caption = "$RV_{i,\ t}$ sum
 kable(readr::read_rds(paste0(path, "tablea12.rds")), caption = "$RVOL_{i,\ t}$ summary statistics",
       digits = 4)
 ```
+
+## Series' Correlation Matrix {#acor}
+```{r}
+kable(readr::read_rds(paste0(path, "full_cor.rds")), caption = "Full sample 5 minute correlation matrix",
+      digits = 4)
+```
+
+Not used
+
+\begin{equation}
+(\#eq:r)
+R_i = \begin{bmatrix}
+r_{i,\ 1}\\
+r_{i,\ 2}\\
+... \\
+r_{i,\ T}
+\end{bmatrix}
+\end{equation}
+
 

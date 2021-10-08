@@ -8,9 +8,7 @@ fmb2 <- function(data, beta1, beta2, K = 10){
     # Nest data
     tidyr::nest(data = c(assets, rets)) %>% 
     # Nunmber of series in that day
-    mutate(n        = map_dbl(.x = data, .f = ~10 - sum(is.na(.x)))) %>%
-    # Filter only days with K series
-    filter(n == K) %>% 
+    mutate(n        = map_dbl(.x = data, .f = ~K - sum(is.na(.x)))) %>%
     # Run regression
     mutate(reg      = map(.x = data, .f = ~lm(.x$rets ~ beta1 + beta2)),
            reg_tidy = map(.x = reg, .f = broom::tidy),
