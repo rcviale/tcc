@@ -166,7 +166,7 @@ source('R/rv.R')
 source('R/collapse_date.R')
 
 # Load restricted data set
-all_data <- readr::read_rds("Data/rest_fdata.rds")
+all_data <- readr::read_rds("Data/fdata.rds")
 
 # Convert series to different time frequency
 all_data <- all_data %>%
@@ -174,21 +174,23 @@ all_data <- all_data %>%
   slice_head(n = nrow(.) - 1)
 
 # Save RDS for the future
-readr::write_rds(all_data, file = "Data/new_all_data5.rds")
+readr::write_rds(all_data, file = "Data/fdata5.rds")
 
 rm(collapse_time)
 
 
 
 # Load specific data set
-all_data <- readr::read_rds("Data/new_all_data5.rds")
+all_data <- readr::read_rds("Data/fdata5.rds")
 
 # Tibble with daily returns
 rets <- all_data %>% 
   lrets() %>% 
-  slice_tail(n = nrow(.) - 1) %>% 
+  slice_tail(n = nrow(.) - 1) %>%
   collapse_date(datetime, "day", sum, na.rm = TRUE) %>% 
   rename(date = datetime)
+
+rets[rets == 0] <- NA
 
 # Save returns RDS
 readr::write_rds(rets, file = 'Data/rets.rds')
@@ -219,12 +221,15 @@ rets %>%
 rm(rets, lrets)
 
 
+
 # Tibble with Realized Variances
 rvs <- all_data %>%
   rv() %>%
   slice_tail(n = nrow(.) - 1) %>% 
   collapse_date(datetime, 'day', sum, na.rm = TRUE) %>% 
   rename(date = datetime)
+
+rvs[rvs == 0] <- NA
 
 # Save RVs RDS
 readr::write_rds(rvs, file = 'Data/rvs.rds')
@@ -241,18 +246,11 @@ rvs %>%
   select(cur, min, med, mean, max, var, sd, q1, q3) %>% 
   readr::write_rds(file = "Print/tablea11.rds")
 
-rm(rvs)
-
 
 
 # Tibble with Realized Volatilities
-rvols <- all_data %>%
-  rv() %>%
-  slice_tail(n = nrow(.) - 1) %>% 
-  collapse_date(datetime, 'day', sum, na.rm = TRUE) %>% 
-  # Take square root (volatility)
-  modify_if(is.numeric, .f = ~sqrt(.x)) %>% 
-  rename(date = datetime)
+rvols <- rvs %>% 
+  modify_if(is.numeric, ~sqrt(.x))
 
 # Save Rvols RDS
 readr::write_rds(rvols, file = 'Data/rvols.rds')
@@ -275,7 +273,7 @@ rm(list = ls())
 
 #### Covariance Matrix and PCA Market Estimates #####
 # Load RDS with specific time frequency
-all_data <- readr::read_rds("Data/new_all_data5.rds")
+all_data <- readr::read_rds("Data/fdata5.rds")
 source('R/lrets.R')
 
 # Take log returns, compute PCA weights and 1st component series
@@ -288,7 +286,7 @@ covs_pca <- all_data %>%
   nest(data = -date) %>% # Nest according to day
   mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
          layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
-         pca     = map(.x = data, .f = ~ princomp(na.omit(.x))),
+         pca     = map2(.x = data, .y = layout, .f = ~princomp(na.omit(.x[, 1 : .y]))),
          mkt_ret = map_dbl(.x = pca, .f = ~ factoextra::get_eig(.x)$eigenvalue[1]),
          weights = map2(.x = pca, .y = layout, 
                         .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)],
@@ -421,10 +419,10 @@ rm(list = ls())
 
 #### Fama-MacBeth Regressions (FINALLY!) ####
 # Load Market Cap and PCA based daily data tibbles
-daily_data <- readr::read_rds("Data/daily_data.rds")
-daily_data_garch <- readr::read_rds("Data/daily_data_garch.rds")
-daily_data_pca <- readr::read_rds("Data/daily_data_pca.rds")
-daily_data_pca_garch <- readr::read_rds("Data/daily_data_pca_garch.rds")
+daily_data <- readr::read_rds("Data/daily_data.rds") %>% slice_tail(n = 731)
+daily_data_garch <- readr::read_rds("Data/daily_data_garch.rds") %>% slice_tail(n = 731)
+daily_data_pca <- readr::read_rds("Data/daily_data_pca.rds") %>% slice_tail(n = 731)
+daily_data_pca_garch <- readr::read_rds("Data/daily_data_pca_garch.rds") %>% slice_tail(n = 731)
 
 # Load pre Fama-MacBeth regression functions
 # source("R/pre_fmb.R")
@@ -514,13 +512,3 @@ rm(list = ls())
 # sd_g2 <- sd(gammas2)
 # test_stat <- sqrt(nrow(regs2) / 3) * mu_g2 / sd_g2
 # p_value <- 2 * pt(-abs(test_stat), df = nrow(regs2) - 1)
-
-
-
-
-
-
-
-
-
-
