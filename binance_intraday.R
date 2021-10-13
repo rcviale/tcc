@@ -291,10 +291,10 @@ covs_pca <- all_data %>%
          weights = map2(.x = pca, .y = layout, 
                         .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)],
                                       weight = factoextra::get_pca_var(.x)$contrib[1 : .y] / 100))) %>%
-  select(-c(pca, data)) %>% 
+  select(-data) %>% 
   unnest(weights) %>% 
   pivot_wider(names_from = asset, values_from = weight) %>% 
-  nest(data = -c(date, covs, mkt_ret, layout)) %>% 
+  nest(data = -c(date, covs, mkt_ret, layout, pca)) %>% 
   mutate(act_cov  = map2(.x = covs, .y = layout, .f = ~ as.matrix(.x[1:.y, 1:.y])),
          act_wts  = map2(.x = data, .y = layout, .f = ~ as.matrix(.x[1:.y])),
          mkt_rv   = map2_dbl(.x = act_cov, .y = act_wts, .f = ~ .y %*% .x %*% t(.y)),
@@ -308,15 +308,22 @@ covs_pca %>%
 
 # Select the PCA market computations and save RDS
 covs_pca %>% 
-  select(-covs) %>% 
+  select(-c(covs, pca)) %>% 
   readr::write_rds(file = "Data/pca_mkt.rds")
 
 
 
+# Summary statistics for PC1
+covs_pca %>% 
+  select(pca) %>% 
+  slice_tail(n = 731) %>% 
+  mutate(pc1 = map_dbl(.x = pca, .f = ~factoextra::get_eig(.x)$variance.percent[1])) %>% 
+  summarise(across(pc1, stats))
+
 # Full period covariance matrix
 full_cor <- all_data %>%
+  slice_tail(n = 210528) %>% 
   lrets() %>% 
-  slice_tail(n = (nrow(.) - 1)) %>%
   select(-datetime) %>% 
   cor(use = "pairwise.complete.obs")
 
