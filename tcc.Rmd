@@ -18,23 +18,23 @@ library(tidyverse)
 library(knitr)
 ```
 
-# Introduction {#intro}
+# INTRODUCTION {#intro}
 
-A alocação de carteiras de investimento de maneira assertiva é uma tarefa de difícil execução, uma vez que envolve invariavelmente uma pluralidade de riscos. O risco de mercado em particular nunca pode ser completamente eliminado, porém, muito se discute em termos de seu controle e minimização, principalmente através de diversificação, meio esse que depende do mapeamento correto das correlações entre os ativos. Portanto, torna-se necessária, em um processo de construção de carteiras visando a otimização de portfólios, não só a estimação da matriz de covariâncias de maneira assertiva, mas também de medidas de volatilidade precisas.
+The assertive allocation of investment portfolios is a difficult task to carry out, as it invariably involves a plurality of risks. Market risk in particular can never be completely eliminated, however, much is discussed in terms of its control and minimization, mainly through diversification, which depends on the correct mapping of correlations between assets. In a securities selection process aimed at portfolio optimization, therefore, it becomes necessary having not only assertive estimates for the covariance matrix, but also precise volatility measures.
 
-Um método muito comum e popularizado na literatura que trata da previsão de volatilidade é o GARCH (*General Autoregressive Conditional Heteroskedasticity*), introduzido por @Bollerslev86 e que é empregado em retornos diários. GARCH-type models, however, tend to overpredict volatility, as documented by @Nomikos11 when dealing with petroleum futures' time series. These models, therefore, present a slow response after a volatility shock passes, taking time for the estimates to go down.
+A very common and popularized method in the literature dealing with volatility estimation is the Generalized Autoregressive Conditional Heteroskedasticity (GARCH), introduced by @Bollerslev86, which employs daily returns in order to get a measure for the variance of an asset. GARCH-type models, however, tend to overpredict volatility, as documented by @Nomikos11 when dealing with petroleum futures' time series. These models, therefore, present a slow response after a volatility shock passes, taking time for the estimates to go down.
 
-With the growing amount, availability and managebility of data at higher frequencies (intraday) than the daily one, a richer sample covariance matrix can be estimated, leading ultimately to the construction of a matrix based on realized measures. 
+With the growing amount, availability and manageability of data at higher frequencies (intraday) than the daily one, a richer sample covariance matrix can be estimated, leading ultimately to the construction of a matrix based on realized measures. 
 
-Cryptocurrencies have gained notoriety over the last few years, especially because of the appreciation of Bitcoin, which had an incredible peak in 2018 that was only reached and surpassed by the end of 2020. These alternative assets are traded worldwide in various *exchanges*, private platforms that bare similarities to traditional stock and futures exchanges, like connecting buyers and sellers, but also some pecularities, like unlimited trading 24 hours a day every day of the year, which increases the amount of data per day, since negotiation is not limited to a specific time frame of each day. From 2018 many new digital currencies were introduced, each with a different purpose. These have also had noteworthy appreciation in general, with the total market cap of 50 most valued cryptocurrencies having reached over 1,9 trillion dollars ^[Source: Coinmarketcap, in September 19, 2021]. These higher returns when compared to traditional assets, however, are attained only by the increased volatility that predominates in this market.
+Cryptocurrencies have gained notoriety over the last few years, especially because of the appreciation of Bitcoin, which had an incredible peak in 2018 that was only reached and surpassed by the end of 2020. These alternative assets are traded worldwide in various *exchanges*, private platforms that bare similarities to traditional stock and futures exchanges, like connecting buyers and sellers, but also some peculiarities, like unlimited trading 24 hours a day every day of the year, which increases the amount of data per day, since negotiation is not limited to a specific time frame of each day. From 2018 many new digital currencies were introduced, each with a different purpose. These have also had noteworthy appreciation in general, with the total market cap of 50 most valued cryptocurrencies having reached over 1,9 trillion dollars ^[Source: Coinmarketcap, in September 19, 2021]. These higher returns when compared to traditional assets, however, are attained only by the increased volatility that predominates in this market.
 
 This study aims to verify if this additional volatility is a significant factor in determining cryptocurrencies' returns and, simultaneously, if there are benefits to using high frequency data for the covariance matrix estimation, instead of a daily one.
 
 In Chapter \@ref(litrev), a literature review about the matter is introduced, Chapter \@ref(data) briefly describes the data set, Chapter \@ref(empmet) presents the empirical methodology applied in this work, Chapter \@ref(res) presents the obtained results and finally, Chapter \@ref(conc) concludes.
 
-# Literature Review {#litrev}
+# LITERATURE REVIEW {#litrev}
 
-# Data Description {#data}
+# DATA DESCRIPTION {#data}
 
 The data used in this work consists of ten minute-by-minute cryptocurrency prices series obtained from Binance's API ^[Source: https://api.binance.com/] and negotiated in this exchange, which is currently the largest one in the world in terms of daily trading volume of cryptocurrencies ^[Source: CoinMarketCap, at https://coinmarketcap.com/rankings/exchanges/]. It is also one of the world leaders in terms of number of "markets", where a "market" is defined as the pair of currencies that are being traded. 
 
@@ -52,20 +52,27 @@ These 5-minute closing prices series were then used to compute realized variance
 
 In order to weight the assets and create a theoretical index to represent the "crypto market factor", the daily market capitalization of each cryptocurrency was obtained from CoinMarketCap. The weighting procedure will be described in Section \@ref(syntwei).
 
-# Methodology {#empmet}
+# METHODOLOGY {#empmet}
 
 The methodology used in this study combines realized measures, which are presented in Section \@ref(measures), applied to real series, i.e. the cryptocurrencies that make up the initial data set, but also to fictitious series, that are created trough the assets' weighting techniques described in Section \@ref(syntwei), constituting the final data set. At the same time, a GARCH volatility estimate is computed, according to what is depicted in Section \@ref(garch). Lastly, with this final data set and the GARCH estimates, two Fama-MacBeth regressions, as presented in Section \@ref(fmb), are computed.
 
-## Realized Mesures {#measures}
+## REALIZED MEASURES {#measures}
 
 For the purposes of this study, individual asset log returns are computed from the sum of the 5-min log returns for each cryptocurrency $i$, according to the formula below.
 
 \begin{equation}
 (\#eq:ri)
-r_{i, t} = \sum_{j = 1}^{m} r_{i, t - 1 + j n}
+r_{i, t} = \sum_{j = 1}^{m} r_{i, t - 1 + j n}\  \text{ and }\
+R_i = 
+\begin{bmatrix}
+r_{i,\ 1}\\
+r_{i,\ 2}\\
+... \\
+r_{i,\ T}
+\end{bmatrix}
 \end{equation}
 
-where $t$ represents a day, $n$ is a fraction of a trading session associated with the sampling frequency (since 5-min returns are being used and there are 1440 minutes in one day, $n = \frac{1}{(1440/5)} = \frac{1}{288}$) and $m$ represents the amount of observations in on day ($m = \frac{1}{n} = 288$).
+where $t$ represents a day, $n$ is a fraction of a trading session associated with the sampling frequency (since 5-min returns are being used and there are 1440 minutes in one day, $n = \frac{1}{(1440/5)} = \frac{1}{288}$), $m$ represents the amount of observations in on day ($m = \frac{1}{n} = 288$) and $T$ is the last observation day.
 
 Following the research from Liu et al. (2015), which concluded that it is very difficult to significantly beat a simple 5-minute realized variance ($RV$) when it comes to price variation estimators constructed from high-frequency data, this realized measure is therefore taken for the analysis conducted in this study. This estimator consists of the sum of squared 5-minute returns for each day $t$ and asset $i$, as in the formula below.
 
@@ -83,17 +90,17 @@ The volatility $RVOL_{i,\ t}$ provided by this estimator is then simply the squa
 RVOL_{i,\ t} = \sqrt{RV_{i, t}}
 \end{equation}
 
-## Synthetic Market Estimates and Weighting Methods {#syntwei}
+## SYNTHETIC MARKET ESTIMATES AND WEIGHTING METHODS {#syntwei}
 
 In order to create synthetic indices that are able to represent the the overall cryptocurrency market, it becomes necessary to weight the assets in order to create this index. Two methods, therefore, are employed as weighting factors: the daily market capitalization for each asset and the weights derived from the application of the Principal Component Analysis (PCA).
 
-### Estimation Based on Market Capitalization {#mcap}
+### ESTIMATION BASED ON MARKET CAPITALIZATION {#mcap}
 
 From the daily market capitalization series, weights $w_{i,\ t}$ are estimated such that
 
 \begin{equation}
 (\#eq:wi)
-w_{i,\ t}^{(MC)} = \frac{MC_{i, t}}{\sum_{j = 1}^K MC_{j, t}}\\
+w_{i,\ t}^{(MC)} = \frac{MC_{i, t}}{\sum_{j = 1}^K MC_{j, t}}
 \end{equation}
 
 \begin{equation}
@@ -113,7 +120,7 @@ These weights are then combined with the assets' returns in equation \@ref(eq:ri
 
 \begin{equation}
 (\#eq:caprm)
-r_{m,\ t}^{(MC)} = \sum_{i = 1}^K (r_{i,\ t} w_{i,\ t})\\
+r_{m,\ t}^{(MC)} = \sum_{i = 1}^K (r_{i,\ t} w_{i,\ t})
 \end{equation}
 
 \begin{equation}
@@ -156,24 +163,31 @@ where $s_{ij,\ t}^2$ denotes the 5-minute sample covariance between assets $i$ a
 RV_{m,\ t}^{(MC)} = W_{MC,\ t}^T \times RCov_{t} \times W_{MC,\ t},
 \end{equation}
 
-where superscript $T$ is denotes the transposed of the vector in question. The volatility for each period $t$ is therefore obtained simply by taking square root of the obtained realized variance estimate: 
+where superscript $T$ denotes the transposed of the vector in question. The volatility $RVOL_M^{(MC)}$ estimate derived from market capitalization weighting is then obtained simply by taking square root of the obtained realized variance estimate, similarly to the procedure in equation \@ref(eq:rvol).
 
 \begin{equation}
 (\#eq:caprvol)
-RVOL_{m,\ t}^{(MC)} = \sqrt{RV_{m,\ t}^{(MC)}}
+RVOL_{M}^{(MC)} = 
+\begin{bmatrix}
+\sqrt{RV_{M, 1}^{(MC)}}\\
+\sqrt{RV_{M, 2}^{(MC)}}\\
+...\\
+\sqrt{RV_{M, T}^{(MC)}}\\
+\end{bmatrix}
 \end{equation}
 
-### Estimation Based on Principal Component Analysis {#pca}
+### ESTIMATION BASED ON PRINCIPAL COMPONENT ANALYSIS {#pca}
 
-An alternative method used to obtain an estimate for the market's returns and volatility is through Principal Component Analysis (PCA), introduced by @Pearson1901. In a context of closely related variables such as this data set (see the series' correlation matrix in Appendix \@ref(acor), @Brooks19 noted that PCA can be particularly useful, because it can transform the $K$ series into a new set of $K$ uncorrelated variables, by taking linear combinations of the original data set. In other terms, as Brooks presents
+An alternative method used to obtain an estimate for the market's returns and volatility is through Principal Component Analysis (PCA), introduced by @Pearson1901. In a context of closely related variables such as this data set (see the series' correlation matrix in Appendix \@ref(acor), @Brooks19 noted that PCA can be particularly useful, because it can transform the $K$ series into a new set of $K$ uncorrelated variables, by taking linear combinations of the original data set. In other terms, the PCA can be written as
 
+$$
 \begin{array}{ccccccccc}
-(\#eq:pca)
-p_{1, t}  & = & \alpha_{11, t} r_{1, t} & + & \alpha_{12, t} r_{2, t} & + & ... & + & \alpha_{1K, t} r_{K, t} \\
-p_{2, t}  & = & \alpha_{21, t} r_{1, t} & + & \alpha_{22, t} r_{2, t} & + & ... & + & \alpha_{2K, t} r_{K, t} \\
-...  & = & ...                & + & ...                 & + & ... & + & ... \\
-p_{K, t}  & = & \alpha_{K1, t} r_{1, t} & + & \alpha_{K2, t} r_{2, t} & + & ... & + & \alpha_{KK, t} r_{K, t} \\
+p_{1, t} & = & \alpha_{11, t} r_{1, t} & + & \alpha_{12, t} r_{2, t} & + & ... & + & \alpha_{1K, t} r_{K, t}\\
+p_{2, t} & = & \alpha_{21, t} r_{1, t} & + & \alpha_{22, t} r_{2, t} & + & ... & + & \alpha_{2K, t} r_{K, t}\\
+...  & = & ... & + & ... & + & ... & + & ...\\
+p_{K, t} & = & \alpha_{K1, t} r_{1, t} & + & \alpha_{K2, t} r_{2, t} & + & ... & + & \alpha_{KK, t} r_{K, t}
 \end{array}
+$$
 
 where $p_{i, t}$ and $r_{i, t}$, represent, respectively, the $i$ principal component and original variable (5-minute return) in period $t$, and $\alpha_{ij, t}$ denotes the coefficient for variable $j$ in the principal component $i$ in day $t$. The sum of the squared coefficients $\alpha^2$ that were estimated must be equal to one for each individual component, as in equation \@ref(eq:condpca). The variables have to be standardized before the application of this method, although this step is not necessary in this study since it will work with log-returns and not prices' series. 
 
@@ -182,7 +196,18 @@ where $p_{i, t}$ and $r_{i, t}$, represent, respectively, the $i$ principal comp
 \sum_{j = 1}^K \alpha_{i,\ j}^2 = 1 \ \forall \ i = 1,\ 2,\ ...,\ K.
 \end{equation}
 
-This procedure is, therefore, carried out for the 5-minute returns series for each day $t$ in the analyzed period, and from the estimated principal components, the first one, which is able to explain the largest amount of the data's variance (56% on average during the sampled period, see Appendix \@ref(apca) for additional information on PCA's application), is taken as the returns for an index to represent the cryptocurrencies market in the same fashion as the market cap weighted index constructed in Section \@ref(mcap). This first component is already weighted itself, so there is no need for any further calculations for these *market returns*. 
+This procedure is, therefore, carried out for the 5-minute returns series for each day $t$ in the analyzed period, and from the estimated principal components, the first one, which is able to explain the largest amount of the data's variance (56% on average during the sampled period, see Appendix \@ref(apca) for additional information on PCA's application), is taken as the returns for an index to represent the cryptocurrencies market in the same fashion as the market cap weighted index constructed in Section \@ref(mcap). This first principal component can be viewed as a weighted average of the analyzed assets, so there is no need for any further calculations, providing what can be interpreted as an estimate for *market returns* $R_M^{(PCA)}$, defined as
+
+\begin{equation}
+(\#eq:pcaRm)
+R_M^{(PCA)} =
+\begin{bmatrix}
+p_{1, 1}\\
+p_{1, 2}\\
+...\\
+p_{1, T}
+\end{bmatrix}
+\end{equation}
 
 Computing the realized volatility of the market however, requires a weighting vector to apply the same matrix multiplication as in Section \@ref(mcap). This vector is obtained from the weights attributed to each asset by the first principal component, which are the squared coefficients $\alpha_{1j, t}$ from equation \@ref(eq:condpca) for each day $t$, in the form of equation \@ref(eq:wpca). 
 
@@ -197,29 +222,35 @@ W_{PCA,t} =
 \end{bmatrix}
 \end{equation}
 
-The market realized variance is then obtained in the same fashion as in the market capitalization case presented in equation \@ref(eq:caprv), that is, by multiplying the transposed PCA weights vector by the 5-minute sample covariance matrix and then the PCA weights vector, as showed in equation \@ref(eq:pcarv) and the realized volatility is again computed by taking the square root of $RV_t$.
+The market realized variance is then obtained in the same fashion as in the market capitalization case presented in equation \@ref(eq:caprv), that is, by multiplying the transposed PCA weights vector by the 5-minute sample covariance matrix and then the PCA weights vector, as showed in equation \@ref(eq:pcarv). Lastly, the realized volatility $RVOL_{M}^{(PCA)}$ is again computed by taking the square root of the realized variance, as defined in equation \@ref(eq:rvol) and applied in equation \@ref(eq:caprvol).
 
 \begin{equation}
 (\#eq:pcarv)
-RV_{m,t}^{(PCA)} = W_{PCA,t}^T \times RCov_t \times W_{PCA,t}.
+RV_{M,t}^{(PCA)} = W_{PCA,t}^T \times RCov_t \times W_{PCA,t}
 \end{equation}
 
 \begin{equation}
 (\#eq:pcarvol)
-RVOL_{m,t}^{(PCA)} = \sqrt{RV_{m,t}^{(PCA)}}
+RVOL_M^{(PCA)} = 
+\begin{bmatrix}
+\sqrt{RV_{M, 1}^{(PCA)}}\\
+\sqrt{RV_{M, 2}^{(PCA)}}\\
+...\\
+\sqrt{RV_{M, T}^{(PCA)}}\\
+\end{bmatrix}
 \end{equation}
 
 With these, there are two measures to represent the cryptocurrencies market derived from PCA and two derived from market capitalization of individual assets, with one in each case being for market returns and the other one for realized volatility. 
 
-In the next subsection, a GARCH model is presented as an alternative volatility estimator.
+In the next Section, a GARCH model is presented as an alternative volatility estimator.
 
-## GARCH Model {#garch}
+## GARCH MODEL {#garch}
 
 According to empirical studies from @Hansen05, where the authors compared the forecast potential of a total of 330 ARCH-type models, there is "no evidence that a GARCH(1, 1) is outperformed by more sophisticated models" in their analysis of exchange rates, by evaluating out-of-sample predictions, although this model is found inferior to the ones that can accommodate a leverage effect when analyzing IBM stock returns.  
 
 The GARCH(p, q) process models conditional variance $\sigma_t^2$, making it possible for the variance to be dependent on its own past lags. The letters *p* and *q* determine the order of the model, with *q* representing the number of past conditional variance lags directly influencing itself in period *t* and *p*, the number of past "innovations" that directly influence the conditional variance in time *t*, where an innovation is defined as the mean-corrected return, or in the case of this study, the mean-corrected log return. As it is not the objective nor the focus of this work, GARCH of higher orders will not be presented here, only the specific case of interest, the GARCH(1, 1), but a detailed explanation can be found directly in @Bollerslev86, or in @Tsay. 
 
-The GARCH(1, 1), therefore, as @Tsay presented, relies on past information to determine the present conditional volatility. Defining the innovations for asset *i* as $a_{i,t} = r_{i,t} - \mu_{i,t}$, where $\mu_{i,t}$ is the mean of the returns, the model can be formalized as
+The GARCH(1, 1), therefore, as @Tsay presented, relies on past information to determine the present conditional volatility. Defining the innovations for asset *i* in period *t* as $a_{i,t} = r_{i,t} - \mu_{i,t}$, where $\mu_{i,t}$ is the mean of the returns, the model can be formalized as
 
 \begin{equation}
 (\#eq:garcha)
@@ -235,14 +266,86 @@ where $\epsilon_{i,t}$ is assumed to be an i.i.d. random variable following a St
 
 It can be seen that in this model a spike in $a_{i, t-1}^2$ or in $\sigma_{i, t-1}^2$ will impact $\sigma_{i, t}^2$ positively, or, in other words, large innovations or conditional variance in time *t - 1* tend to be followed by large innovations in time *t*, since an increase in $\sigma_{i, t}^2$ leads to a higher $a_{i, t}$, making it possible for volatility clusters to occur as they do in financial markets, more noticeably in crisis periods, such as the global financial crisis (2007-2008) and the more recent 2020 stock market crash caused by the COVID-19 pandemic.
 
-For its reasonable forecasting power, allied with its simplicity and parsimony two GARCH(1, 1) models, with *t*-distributed innovations to account for heavier tails, are estimated for the market returns estimates derived from the market capitalization and from the PCA described in Sections \@ref(mcap) and \@ref(pca), respectively. Since this model serves only for comparison purposes, acting as a benchmark for the realized volatility measures, the obtained parameters are not in focus in this work, although being presented in Appendix \@ref(agarch).
+For its reasonable forecasting power, allied with its simplicity and parsimony two GARCH(1, 1) models, with *t*-distributed innovations to account for heavier tails, are estimated for the market returns estimates derived from the market capitalization and from the PCA described in Sections \@ref(mcap) and \@ref(pca), respectively. In other words, two cases are computed, one where the market capitalization weighted theoretical index is modeled, providing a volatility estimate $\sigma_{MC}$ for $R_M^{(MC)}$, and in the second one, the first principal component series is subjected to a GARCH(1, 1) fitting, yielding volatility series $\sigma_{PCA}$ for $R_M^{(PCA)}$. Since these models serve only for comparison purposes, acting as benchmarks for the realized volatility measures, the obtained parameters are not focused in this work, although being presented in Appendix \@ref(agarch).
 
 Finally, the Fama-MacBeth regression, which serves the purpose of testing rather the cryptocurrency market's volatility is a significant factor in determining assets returns, is presented in the next subsection.
 
 ## FAMA-MACBETH REGRESSION {#fmb}
 
+@FMB introduced an approach to test the Capital Asset Pricing Model (CAPM), consisting of two steps, where the first one is running time series linear regressions, obtaining CAPM betas, and the second step is estimating out-of-sample and cross-sectional linear regressions using these betas, its squared values and the residuals' variance from the first step as regressors for assets' returns. The idea behind this study is to test not only if these different risk measures carry significance in determining out-of-sample returns, where the squared beta is also used to check for linearity. The CAPM betas represent the market factor risk and the variance of the residuals, the remaining risk not contemplated by the model (the authors refer to this as "non-$\beta$ risk"). 
 
+Four modified versions of this procedure are estimated in this work, combining the market's realized return derived from market capitalization and from PCA with the realized volatility of the cryptocurrency market computed from these methods and also with the GARCH volatility estimates. These models are outlined below.
 
+* **Model 1:** combines cryptocurrency market returns and realized volatility derived from the market capitalization weighting of the assets in under analysis, as described in Section \@ref(mcap). Thus, the model's regressions from the first and second step of the Fama-MacBeth approach can be written as
+
+\begin{equation}
+(\#eq:model1)
+\text{First step: }\
+R_{i} = \beta_{0, i} + \beta_{1, i} R_M^{(MC)} + \beta_{2, i} RVOL_i^{(MC)} + \epsilon_{i}\\
+
+\text{Second step: }\
+R_{t} = \lambda_{0, t} + \lambda_{1, t} \beta_{1} + \lambda_{2, t} \beta_{2} + u_t
+\end{equation}
+
+* **Model 2:** this version combines market returns and realized volatility obtained from the PCA technique applied to the data set in the form found in Section \@ref(pca). It can be formulated in the following way.
+
+\begin{equation}
+(\#eq:model2)
+\text{First step: }\
+R_{i} = \beta_{0, i} + \beta_{1, i} R_M^{(PCA)} + \beta_{2, i} RVOL_i^{(PCA)} + \epsilon_{i}\\
+
+\text{Second step: }\
+R_{t} = \lambda_{0, t} + \lambda_{1, t} \beta_{1} + \lambda_{2, t} \beta_{2} + u_t
+\end{equation}
+
+* **Model 3:** in this specification, the market returns derived from the market capitalization weighting are combined are used as an independent variable, along with the GARCH(1, 1) volatility estimate for this series that was presented in Subsection \@ref(garch).
+
+\begin{equation}
+(\#eq:model3)
+\text{First step: }\
+R_{i} = \beta_{0, i} + \beta_{1, i} R_M^{(MC)} + \beta_{2, i} \sigma_i^{(MC)} + \epsilon_{i}\\
+
+\text{Second step: }\
+R_{t} = \lambda_{0, t} + \lambda_{1, t} \beta_{1} + \lambda_{2, t} \beta_{2} + u_t
+\end{equation}
+
+* **Model 4:** finally, in this case, the crypto market returns representation obtained from the first component of the PCA are used, together with the GARCH(1, 1) volatility estimates for such time series, as described in Subsection \@ref(garch).
+
+\begin{equation}
+(\#eq:model4)
+\text{First step: }\
+R_{i} = \beta_{0, i} + \beta_{1, i} R_M^{(PCA)} + \beta_{2, i} \sigma_i^{(PCA)} + \epsilon_{i}\\
+
+\text{Second step: }\
+R_{t} = \lambda_{0, t} + \lambda_{1, t} \beta_{1} + \lambda_{2, t} \beta_{2} + u_t
+\end{equation}
+
+where $\beta_1 = (\beta_{1, 1},\ \beta_{1, 2},\ ...,\ \beta_{2, K})$, $\beta_2 = (\beta_{2, 1},\ \beta_{2, 2},\ ...,\ \beta_{2, K}$, $\lambda_1$ measures the variance of $R_t$ explained by the CAPM betas, $\lambda_2$, the coefficient of interest, gives the variance of $R_t$ explainable by the volatility measure in each model specification, and $\epsilon{i}$ and $u_t$ are normally distributed, with mean 0 and constant variance.
+
+In each model's first step, therefore, 10 regressions are run, one for each asset $i$, while for the second step of the procedure, 731 regressions are estimated, one for each day $t$ in the sample period, obtaining 731 values for each one of the lambdas, which can then simply averaged as
+
+\begin{equation}
+(\#eq:avglambda)
+\bar{\lambda_h} = \frac{\sum_{t = 1}^T \tilde{\lambda_{h, t}}}{T},\ \text{ for }\ h = 1,\ 2
+\end{equation}
+
+while its standard deviation can be computed as
+
+\begin{equation}
+(\#eq:sdlambda)
+\sigma_h = \sqrt{\frac{\sum_{t = 1}^T (\tilde{\lambda_{h, t}} - \bar{\lambda_h})^2}{T - 1}},\ \text{ for }\ h = 1,\ 2.
+\end{equation}
+
+With these, a *t*-ratio $z_h$ can be computed for hypothesis testing, under the null $H_0:\ \lambda_h = 0$, as
+
+\begin{equation}
+(\#eq:tstat)
+z_h = \frac{\bar{\lambda_h}\sqrt{T}}{\sigma_h}
+\end{equation}
+
+which follows a *t* distribution with $T- 1$ degrees of freedom. This hypothesis test is the final result for each model, where the inference of which betas are significant on explaining the variance of assets' returns can be done. The objective of this work is to test rather using volatility estimates derived from high-frequency data are significant explainable variables, while simultaneously checking if the GARCH(1, 1) volatility is a meaningful regressor. It is important to notice that while Fama and MacBeth performed the second step regressions, and consequently the *t*-tests, out-of-sample, that is, using the estimated betas from the one time window as independent variables for the returns of the next time span, in this work, this made only in sample, using the betas from the first as regressors for the returns in the same time-frame.
+
+The next section describes the results from these Fama-MacBeth regressions, mainly focusing on the $\lambda_2$ coefficients' significance, responsible for the effect of the crypto market volatility betas on individual asset returns.
 
 # RESULTS {#res}
 
