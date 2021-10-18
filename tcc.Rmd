@@ -26,7 +26,7 @@ A very common and popularized method in the literature dealing with volatility e
 
 With the growing amount, availability and manageability of data at higher frequencies (intraday) than the daily one, a richer sample covariance matrix can be estimated, leading ultimately to the construction of a matrix based on realized measures. 
 
-Cryptocurrencies have gained notoriety over the last few years, especially because of the appreciation of Bitcoin, which had an incredible peak in 2018 that was only reached and surpassed by the end of 2020. These alternative assets are traded worldwide in various *exchanges*, private platforms that bare similarities to traditional stock and futures exchanges, like connecting buyers and sellers, but also some peculiarities, like unlimited trading 24 hours a day every day of the year, which increases the amount of data per day, since negotiation is not limited to a specific time frame of each day. From 2018 many new digital currencies were introduced, each with a different purpose. These have also had noteworthy appreciation in general, with the total market cap of 50 most valued cryptocurrencies having reached over 1,9 trillion dollars ^[Source: Coinmarketcap, in September 19, 2021]. These higher returns when compared to traditional assets, however, are attained only by the increased volatility that predominates in this market.
+Cryptocurrencies have gained notoriety over the last few years, especially because of the appreciation of Bitcoin, which had an incredible peak in 2018 that was only reached and surpassed by the end of 2020 (see Figures \@ref(fig:Rplot2) and \@ref(fig:Rplot1) for cumulative log-returns). These alternative assets are traded worldwide in various *exchanges*, private platforms that bare similarities to traditional stock and futures exchanges, like connecting buyers and sellers, but also some peculiarities, like unlimited trading 24 hours a day every day of the year, which increases the amount of data per day, since negotiation is not limited to a specific time frame of each day. From 2018 many new digital currencies were introduced, each with a different purpose. These have also had noteworthy appreciation in general, with the total market cap of 50 most valued cryptocurrencies having reached over 1,9 trillion dollars ^[Source: Coinmarketcap, in September 19, 2021]. These higher returns when compared to traditional assets, however, are attained only by the increased volatility that predominates in this market.
 
 This study aims to verify if this additional volatility is a significant factor in determining cryptocurrencies' returns and, simultaneously, if there are benefits to using high frequency data for the covariance matrix estimation, instead of a daily one.
 
@@ -38,17 +38,21 @@ In Chapter \@ref(litrev), a literature review about the matter is introduced, Ch
 
 The data used in this work consists of ten minute-by-minute cryptocurrency prices series obtained from Binance's API ^[Source: https://api.binance.com/] and negotiated in this exchange, which is currently the largest one in the world in terms of daily trading volume of cryptocurrencies ^[Source: CoinMarketCap, at https://coinmarketcap.com/rankings/exchanges/]. It is also one of the world leaders in terms of number of "markets", where a "market" is defined as the pair of currencies that are being traded. 
 
-This study's sample was restricted to the period between August 1, 2019 to July 31, 2021 (731 days in total), because not all series were available from the source before these dates. The analyzed cryptocurrencies are listed in Table \@ref(tab:restsample), along with each series' number of missing and available observations during this sample period. There is a total of 1,051,640 time stamps (minutes) during this time window, with 0.25% of it being of missing data. Additional information on the availability of the individual series, with each series' initial dates, can be found in Appendix \@ref(adata).
+This study's sample was restricted to the period between August 1, 2019 to July 31, 2021 (731 days in total), because not all series were available from the source before these dates. The analyzed cryptocurrencies are listed in Table \@ref(tab:restsample), along with each series' number of missing and available observations during this sample period. There is a total of 1,051,640 time stamps (minutes) during this time window, with 0.25% of it being of missing data. Additional information on the availability of the individual series, with each series' initial dates on Binance's API can be found in Appendix \@ref(adata).
 
 ```{r restsample}
 path <- "C:/Users/rodri/OneDrive/Documents/Academics/Trabalho de Conclusão de Curso/tcc/Print/"
 kable(readr::read_rds(paste0(path, "rest_summ_table.rds")), 
-      caption = "Series' Sample Size")
+      caption = "Series' Sample Sizes")
 ```
 
 In order to better clean this minute-by-minute data set, missing observations were filled with the previously available price and, subsequently, the last price from each 5-minute interval was taken, constructing ten series with this frequency, which then amount to 210,528 and 288 observations in total and per day, respectively, for each asset. This periodicity was chosen based on the empirical work from @Liu15, where the authors found it is very difficult to significantly beat 5-minute realized variance when it comes to price variation estimators constructed from high-frequency data, considering a span of five asset classes to reach this conclusion.
 
-These 5-minute closing prices series were then used to compute realized variances, $RV_{i,\ t}$, and realized volatilities, $RVOL_{i,\ t}$ for each asset, according to the formulas that will be presented in Section \@ref(measures). Daily log-returns, $r_{i,\ t}$, consisting of the sum of all 5-minute log-returns in a day, were also taken. Summary statistics for these measures for each series can be found in Appendix \@ref(asumm).
+These 5-minute closing prices series were then used to compute realized variances, $RV_{i,\ t}$, and realized volatilities, $RVOL_{i,\ t}$ for each asset, according to the formulas that will be presented in Section \@ref(measures). Daily log-returns, $r_{i,\ t}$, consisting of the sum of all 5-minute log-returns in a day, were also taken. Summary statistics for these measures for each series can be found in Appendix \@ref(asumm). The assets' cumulative daily log-returns in the analyzed period are presented in Figure \@ref(fig:Rplot2).
+
+```{r Rplot2, fig.cap = "Cryptocurrencies' Cumulative Log-Returns from August 1, 2019 to July 31, 2021", , fig.topcaption = TRUE}
+knitr::include_graphics(paste0(path, "Rplot2.jpeg"))
+```
 
 In order to weight the assets and create a theoretical index to represent the "crypto market factor", the daily market capitalization of each cryptocurrency was obtained from CoinMarketCap. The weighting procedure will be described in Section \@ref(syntwei).
 
@@ -320,7 +324,7 @@ R_{i} = \beta_{0, i} + \beta_{1, i} R_M^{(PCA)} + \beta_{2, i} \sigma_i^{(PCA)} 
 R_{t} = \lambda_{0, t} + \lambda_{1, t} \beta_{1} + \lambda_{2, t} \beta_{2} + u_t
 \end{equation}
 
-where $\beta_1 = (\beta_{1, 1},\ \beta_{1, 2},\ ...,\ \beta_{2, K})$, $\beta_2 = (\beta_{2, 1},\ \beta_{2, 2},\ ...,\ \beta_{2, K}$, $\lambda_1$ measures the variance of $R_t$ explained by the CAPM betas, $\lambda_2$, the coefficient of interest, gives the variance of $R_t$ explainable by the volatility measure in each model specification, and $\epsilon{i}$ and $u_t$ are normally distributed, with mean 0 and constant variance.
+where $\beta_1 = (\beta_{1, 1},\ \beta_{1, 2},\ ...,\ \beta_{1, K})$, $\beta_2 = (\beta_{2, 1},\ \beta_{2, 2},\ ...,\ \beta_{2, K}$, $\lambda_1$ measures the variance of $R_t$ explained by the CAPM betas, $\lambda_2$, the coefficient of interest, gives the variance of $R_t$ explainable by the volatility measure in each model specification, and $\epsilon{i}$ and $u_t$ are normally distributed, with mean 0 and constant variance.
 
 In each model's first step, therefore, 10 regressions are run, one for each asset $i$, while for the second step of the procedure, 731 regressions are estimated, one for each day $t$ in the sample period, obtaining 731 values for each one of the lambdas, which can then simply averaged as
 
@@ -345,11 +349,37 @@ z_h = \frac{\bar{\lambda_h}\sqrt{T}}{\sigma_h}
 
 which follows a *t* distribution with $T- 1$ degrees of freedom. This hypothesis test is the final result for each model, where the inference of which betas are significant on explaining the variance of assets' returns can be done. The objective of this work is to test rather using volatility estimates derived from high-frequency data are significant explainable variables, while simultaneously checking if the GARCH(1, 1) volatility is a meaningful regressor. It is important to notice that while Fama and MacBeth performed the second step regressions, and consequently the *t*-tests, out-of-sample, that is, using the estimated betas from the one time window as independent variables for the returns of the next time span, in this work, this made only in sample, using the betas from the first as regressors for the returns in the same time-frame.
 
-The next section describes the results from these Fama-MacBeth regressions, mainly focusing on the $\lambda_2$ coefficients' significance, responsible for the effect of the crypto market volatility betas on individual asset returns.
+The next section describes the results from these Fama-MacBeth regressions, mainly focusing on the $\lambda_2$ coefficients' significance, responsible for the effect of the cryptocurrency market's volatility betas on individual asset returns.
 
 # RESULTS {#res}
 
+This Section presents the results from the estimated model specifications, focusing firstly on the *t*-tests for the obtained coefficients presented in the end of Section \@ref(fmb) and later on the residual part of the linear regressions.
 
+## COEFFICIENTS
+
+As a result from the estimated Fama-MacBeth regression, t-tests are performed on the $\lambda_0$, $\lambda_1$ and $\lambda_2$ estimates, with the results being presented in Table \@ref(tab:tt). From this table, it can be seen that as for the intercept ($\lambda_0$), there is no evidence supporting its significance for any of the estimated models, since the test did not reject the null hypothesis $H_0:\ \lambda_0 = 0$ at the conventional significance level $\alpha = 0.05$. 
+
+For the second coefficient, $\lambda_1$, which estimate the influence of the CAPM betas over assets' returns, the first three model specifications were not able to reject the null hypothesis of the t-test, leading to an assumption of its' insignificance. For Model 4, the one combining the first principal component as an approximation for the market returns and a GARCH(1, 1) with *t*-distributed innovations estimate for the market volatility, however, the p-value of 0.01247 indicates $H_0$ should be rejected at $\alpha = 0.05$ and the coefficient's significance should be assumed. The coefficient's value can be interpreted as the effect that an increase in the asset's CAPM beta has on its returns. A unit increase in the CAPM beta, therefore, will reflect on a 0.00015, that is, 0.015 p.p., higher daily return for the asset in question, roughly equivalent to 5.66 p.p. in annualized terms^[Annualized by 365 days a year], meaning assets with higher coefficient should deliver higher returns when the market rises, while performing worse in downward movement periods. Hence, it can be said that the market returns derived from the first principal component were able to provide CAPM betas that are priced in the assets' individual returns.
+
+```{r tt}
+readr::read_rds(paste0(path, "fmbt_res.rds")) %>% 
+  rename(Coefficient = coef, Model = model, Mean = x_mean, `Std. Error` = sd_er,
+         `t-statistic` = t_stat, `p-value` = p_val) %>% 
+  knitr::kable(caption = "t-tests' Results", digits = 5)
+```
+
+Lastly, for the coefficient of interest in this work, $\lambda_2$, which measures the impact of the market volatility over assets' returns, Models 1 and 4 were able to achieve estimates that can be considered statistically significant, as its p-values were approximately 0.04721 and 0.01359, lower than the threshold of the significance level $\alpha = 0.05$, rejecting the null hypothesis of coefficients equal to zero. It is noticeable the difference in the coefficients' value, 0.00001 and 0.00015 for Models 1 and 4, respectively, highlighting the impact that the choice between using a realized measure or a GARCH specification can have on the estimated value for $\lambda_2$. A unit increase (decrease) in the volatility betas, according the these models, therefore, should reflect, respectively, on 0.00001 and 0.00015 higher (lower) daily asset returns, or, 0.001 p.p. and 0.015 p.p., which are equivalent to 0.25 p.p. and 5.51 p.p. in annualized terms, amounting to a relevant difference. There is indication that these volatility betas' estimates, consequently, are priced in cryptocurrencies' returns. 
+
+The discrepancy in $\lambda_2$ coefficients and subsequent estimated effects caused by the volatility betas can be attributed to the divergence in the $\beta_{2,i}$ estimates from the methods used, emphasizing an important gap between the usage of market capitalization and PCA methods, which can be seen in Table \@ref(tab:betas2). The betas from Model 1 are negative in 8 out of the 10 cases, while in Model 4 only one beta is below zero but still close to this value, the ($\beta_{2, 10}$), from the cryptocurrency MATIC, which is curiously one of the few positive estimates from the former model. This is a worrying result, as negative beta coefficients go against intuition and a market efficiency argument in the sense that increased volatility in this case would decrease assets' returns, constituting an important deterrent for a rational agent to invest in such assets.
+
+```{r betas2}
+readr::read_rds("Print/betas2_comp.rds") %>% 
+  knitr::kable(caption = "Comparison Between $\\beta_{2, i}$ Coefficient Derived from $RVOL_{i}^{(MC)}$ and $\\sigma_i^{(PCA)}$ Estimates", digits = 1)
+```
+
+Before drawing further conclusions, the residuals of the computed linear models are tested.
+
+## RESIDUALS {#resid}
 
 
 
@@ -368,8 +398,12 @@ The next section describes the results from these Fama-MacBeth regressions, main
 ## Series' Data Availability Information {#adata}
 ```{r}
 readr::read_rds(paste0(path, "full_summ_table.rds")) %>%
-  mutate(`Initial Date` = lubridate::as_date(`Initial Date`)) %>% 
+  # mutate(`Initial Date` = lubridate::as_date(`Initial Date`)) %>% 
   kable(caption = "Series' Initial Dates and Total Available Observations", digits = 4)
+```
+
+```{r Rplot1, fig.cap = "Cryptocurrencies' cumulative log-returns from September 1, 2017 to July 31, 2021", fig.topcaption = TRUE}
+knitr::include_graphics(paste0(path, "Rplot1.jpeg"))
 ```
 
 ## Series' Summary Statistics {#asumm}
