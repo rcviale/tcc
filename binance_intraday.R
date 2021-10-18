@@ -124,9 +124,10 @@ full_summ_table <- ini_crypto %>%
          nobs     = cdata %>% summarise_if(is.numeric, ~sum(is.na(.x) == FALSE)) %>% t() %>% as.vector(),
          perc_nas = round(nas / nobs * 100, digits = 2),
          Name     = c("Bitcoin", "Ethereum", "Binance Coin", "Litecoin", "Cardano",
-                  "Ripple", "Cosmos", "Polygon", "Algorand", "Dogecoin")) %>%
-  rename(Acronym = coin, `Initial Date` = `start date`,
-         N = nobs, NAs = nas, `% NAs` = perc_nas) %>% 
+                  "Ripple", "Cosmos", "Polygon", "Algorand", "Dogecoin"),
+         `start date` = lubridate::as_date(`start date`)) %>%
+  rename(Acronym = coin, N = nobs, NAs = nas, `% NAs` = perc_nas,
+         `Initial Date` = `start date`) %>% 
   select(-market) %>% 
   select(Name, everything())
 
@@ -182,6 +183,40 @@ rm(collapse_time)
 
 # Load specific data set
 all_data <- readr::read_rds("Data/fdata5.rds")
+
+# Cumulative log returns
+cum_rets <- all_data %>% 
+  lrets() %>% 
+  slice_tail(n = nrow(.) - 1) %>%
+  collapse_date(datetime, "day", sum, na.rm = TRUE) %>% 
+  modify_if(is.numeric, .f = ~cumsum(.x) * 100)
+
+cum_rets[cum_rets == 0] <- NA
+
+# Full sample cumulative log returns
+cum_rets %>% 
+  reshape2::melt(id = "datetime") %>% 
+  rename(Asset = variable) %>% 
+  ggplot(aes(x = datetime, y = value, colour = Asset, group = Asset)) + 
+  geom_line() + 
+  labs(x = "Days",
+       y = "Cumulative Log-Return") +
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Actual sample cumulative log returns
+cum_rets %>% 
+  filter(datetime >= as.Date("2019-08-01")) %>% 
+  reshape2::melt(id = "datetime") %>% 
+  rename(Asset = variable) %>% 
+  ggplot(aes(x = datetime, y = value, colour = Asset, group = Asset)) + 
+  geom_line() + 
+  labs(x = "Days",
+       y = "Cumulative Log-Return") +
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
 
 # Tibble with daily returns
 rets <- all_data %>% 
@@ -426,10 +461,11 @@ rm(list = ls())
 
 #### Fama-MacBeth Regressions (FINALLY!) ####
 # Load Market Cap and PCA based daily data tibbles
-daily_data <- readr::read_rds("Data/daily_data.rds") %>% slice_tail(n = 731)
-daily_data_garch <- readr::read_rds("Data/daily_data_garch.rds") %>% slice_tail(n = 731)
-daily_data_pca <- readr::read_rds("Data/daily_data_pca.rds") %>% slice_tail(n = 731)
-daily_data_pca_garch <- readr::read_rds("Data/daily_data_pca_garch.rds") %>% slice_tail(n = 731)
+inidate <- as.Date("2019-08-01")
+daily_data <- readr::read_rds("Data/daily_data.rds") %>% filter(date >= inidate)
+daily_data_garch <- readr::read_rds("Data/daily_data_garch.rds") %>% filter(date >= inidate)
+daily_data_pca <- readr::read_rds("Data/daily_data_pca.rds") %>% filter(date >= inidate)
+daily_data_pca_garch <- readr::read_rds("Data/daily_data_pca_garch.rds") %>% filter(date >= inidate)
 
 # Load pre Fama-MacBeth regression functions
 # source("R/pre_fmb.R")
@@ -451,6 +487,7 @@ regs <- daily_data %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b2_m1 <- b2
 
 # Compute second step regressions
 regs2 <- daily_data %>% fmb2(beta1 = b1, beta2 = b2)
@@ -496,6 +533,7 @@ regs <- daily_data_pca_garch %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b2_m4 <- b2
 
 # Compute second step regressions
 regs2 <- daily_data_pca_garch %>% fmb2(beta1 = b1, beta2 = b2, K = 10)
@@ -506,10 +544,23 @@ pca_garch_t <- regs2 %>% fmb_t("beta1", "beta2")
 rm(regs, regs2, fmb1, fmb2, fmb_t, daily_data, daily_data_garch, daily_data_pca, daily_data_pca_garch,
    b1, b2)
 
-cap_t
-pca_t
-cap_garch_t
-pca_garch_t
+# Save t-tests' results table
+cap_t %>% 
+  rbind(pca_t, cap_garch_t, pca_garch_t) %>% 
+  mutate(model = c(rep(1, 3), rep(2, 3), rep(3, 3), rep(4,3))) %>%
+  select(coef, model, everything()) %>% 
+  arrange(coef, model) %>% 
+  readr::write_rds("Print/fmbt_res.rds")
+
+tibble("Asset" = readxl::read_excel("new_initial_dates.xlsx")[, 2] %>% unlist(),
+       "Model 1" = b2_m1,
+       "Model 4" = b2_m4) %>% 
+  readr::write_rds("Print/betas2_comp.rds")
+
+# pivot_longer(cols = c(x_mean, t_stat, p_val)) %>% 
+#   mutate(id = paste0(coef, "_", model)) %>% 
+#   select(-c(coef, model)) %>%
+#   pivot_wider(names_from = id, values_from = value)
 
 rm(list = ls())
 
