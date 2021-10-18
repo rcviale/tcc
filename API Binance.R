@@ -44,10 +44,10 @@ for (j in 1 : length(tickers)){
     if (length(binix) == 0){
       next
     } else{
-      print(anytime::anytime(as.numeric(ini_mths[i])/1000))
+      print(anytime::anytime(as.numeric(ini_mths[i])/1000, asUTC = TRUE))
       ini_crypto[nrow(ini_crypto) + 1, 'market'] <- tickers[j]
       ini_crypto[nrow(ini_crypto), 'coin'] <- coins[j]
-      ini_crypto[nrow(ini_crypto), 'start date'] <- anytime::anytime(as.numeric(ini_mths[i])/1000)
+      ini_crypto[nrow(ini_crypto), 'start date'] <- anytime::anytime(as.numeric(ini_mths[i])/1000, asUTC = TRUE)
       break
     }
   }
