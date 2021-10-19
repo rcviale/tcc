@@ -244,6 +244,7 @@ stats <- list(
   q3   = ~quantile(t(.x), na.rm = T)[4]
 )
 
+# Summary stats for returns
 rets %>%
   select(-date) %>% 
   summarise(across(everything(), stats, .names = "{.fn}_{.col}")) %>% 
@@ -319,13 +320,13 @@ covs_pca <- all_data %>%
   select(-datetime) %>%
   select(date, everything()) %>% 
   nest(data = -date) %>% # Nest according to day
-  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
+  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obsx")),
          layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
          pca     = map2(.x = data, .y = layout, .f = ~princomp(na.omit(.x[, 1 : .y]))),
-         mkt_ret = map_dbl(.x = pca, .f = ~ factoextra::get_eig(.x)$eigenvalue[1]),
+         mkt_ret = map_dbl(.x = pca, .f = ~ mean(.x$scores[1:288])), # First day of full sample is wrong (should be 287)
          weights = map2(.x = pca, .y = layout, 
                         .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)],
-                                      weight = factoextra::get_pca_var(.x)$contrib[1 : .y] / 100))) %>%
+                                      weight = .x$loadings[1 : .y]^2))) %>%
   select(-data) %>% 
   unnest(weights) %>% 
   pivot_wider(names_from = asset, values_from = weight) %>% 
@@ -334,7 +335,7 @@ covs_pca <- all_data %>%
          act_wts  = map2(.x = data, .y = layout, .f = ~ as.matrix(.x[1:.y])),
          mkt_rv   = map2_dbl(.x = act_cov, .y = act_wts, .f = ~ .y %*% .x %*% t(.y)),
          mkt_rvol = sqrt(mkt_rv)) %>% 
-  select(-c(layout, data, act_cov, act_wts))
+  select(-c(layout, data, act_cov))
 
 # Select covariance matrices only and save RDS
 covs_pca %>% 
@@ -345,6 +346,29 @@ covs_pca %>%
 covs_pca %>% 
   select(-c(covs, pca)) %>% 
   readr::write_rds(file = "Data/pca_mkt.rds")
+
+
+
+# Select PCA market Rvol
+# covs_pca %>% 
+#   select(date, mkt_rvol) %>% 
+#   readr::write_rds("Data/pca_rvol.rds")
+
+# pca_rvol <- readr::read_rds("Data/pca_rvol.rds")
+rets <- readr::read_rds("Data/rets.rds")
+
+# Daily PCA
+dpca <- rets %>%
+  na.omit() %>% 
+  select(-date) %>% 
+  princomp()
+
+tibble(date = rets$date,
+       mkt_ret = c(rep(NA, 699), as.matrix(dpca$scores)[, 1]),
+       mkt_rvol = pca_rvol$mkt_rvol) %>% 
+  readr::write_rds("Data/dpca.rds")
+
+
 
 
 
@@ -416,13 +440,15 @@ rm(list = ls())
 rets <- readr::read_rds("Data/rets.rds")
 mkt_rvol <- readr::read_rds("Data/mkt_rvol.rds")
 mkt_ret <- readr::read_rds("Data/mkt_ret.rds")
-pca_mkt <- readr::read_rds("Data/pca_mkt.rds")
+# pca_mkt <- readr::read_rds("Data/pca_mkt.rds")
+dpca <- readr::read_rds("Data/dpca.rds")
 
 # GARCH fit for Market estimates
-gspec <- rugarch::ugarchspec(distribution.model = "std", mean.model = list(armaOrder = c(0, 0)),
+gspec <- rugarch::ugarchspec(distribution.model = "sstd", mean.model = list(armaOrder = c(0, 0)),
                              variance.model = list(model = "sGARCH", garchOrder = c(1, 1)))
 cap_garch <- rugarch::ugarchfit(gspec, mkt_ret$mkt_ret)@fit$sigma
-pca_garch <- rugarch::ugarchfit(gspec, pca_mkt$mkt_ret)@fit$sigma
+# pca_garch <- rugarch::ugarchfit(gspec, pca_mkt$mkt_ret, solver = "hybrid")@fit$sigma
+pca_garch <- rugarch::ugarchfit(gspec, na.omit(dpca$mkt_ret))@fit$sigma
 
 rm(gspec)
 
@@ -444,12 +470,16 @@ rm(mkt_rvol, cap_garch, mkt_ret, daily_data, daily_data_garch)
 
 
 # Left join individual returns, PCA based Market Returns and Realized volatility
-daily_data_pca <- left_join(rets, pca_mkt, by = "date") %>% select(-mkt_rv)
+# daily_data_pca <- left_join(rets, pca_mkt, by = "date") %>% select(-mkt_rv)
+daily_data_pca <- left_join(rets, dpca, by = "date")
 
 # Left join individual returns, PCA based Market Returns and GARCH volatility
-daily_data_pca_garch <- left_join(rets, pca_mkt, by = "date") %>% 
-  select(-mkt_rv) %>% 
-  mutate(mkt_rvol = pca_garch)
+# daily_data_pca_garch <- left_join(rets, pca_mkt, by = "date") %>%
+#   select(-mkt_rv) %>%
+#   mutate(mkt_rvol = pca_garch)
+daily_data_pca_garch <- left_join(rets, dpca, by = "date") %>% 
+  mutate(mkt_rvol = c(rep(NA, 699), pca_garch))
+  
 
 # Save RDS with unified PCA Cap based estimates daily data
 readr::write_rds(daily_data_pca, file = "Data/daily_data_pca.rds")
@@ -503,6 +533,7 @@ regs <- daily_data_pca %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b2_m2 <- b2
 
 # Compute second step regressions
 regs2 <- daily_data_pca %>% fmb2(beta1 = b1, beta2 = b2)
@@ -518,6 +549,7 @@ regs <- daily_data_garch %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b2_m3 <- b2
 
 # Compute second step regressions
 regs2 <- daily_data_garch %>% fmb2(beta1 = b1, beta2 = b2, K = 10)
@@ -554,6 +586,8 @@ cap_t %>%
 
 tibble("Asset" = readxl::read_excel("new_initial_dates.xlsx")[, 2] %>% unlist(),
        "Model 1" = b2_m1,
+       "Model 2" = b2_m2,
+       "Model 3" = b2_m3,
        "Model 4" = b2_m4) %>% 
   readr::write_rds("Print/betas2_comp.rds")
 
@@ -570,3 +604,68 @@ rm(list = ls())
 # sd_g2 <- sd(gammas2)
 # test_stat <- sqrt(nrow(regs2) / 3) * mu_g2 / sd_g2
 # p_value <- 2 * pt(-abs(test_stat), df = nrow(regs2) - 1)
+#### More Summary Statistics
+
+#### More Summary Statistics
+stats <- list(
+  obs  = ~length(.x),
+  min  = ~min(.x, na.rm = T),
+  med  = ~median(.x, na.rm = T),
+  mean = ~mean(.x, na.rm = T),
+  max  = ~max(.x, na.rm = T),
+  var  = ~var(.x, na.rm = T),
+  sd   = ~sd(.x, na.rm = T),
+  q1   = ~quantile(t(.x), na.rm = T)[2],
+  q3   = ~quantile(t(.x), na.rm = T)[4]
+)
+
+inidate <- as.Date("2019-08-01")
+
+readr::read_rds("Data/daily_data_pca_garch.rds") %>%
+  filter(date >= inidate) %>% 
+  select(mkt_ret, mkt_rvol) %>% 
+  summarise(across(everything(), stats)) %>% 
+  pivot_longer(cols = everything()) %>% 
+  separate(name, c("mkt", "variable", "measure"), sep = "_") %>%
+  select(-c(mkt, variable)) %>% 
+  mutate(`Variable - Model` = c(paste0(rep("Returns", 9), " - M2 and M4"), paste0(rep("Volatility", 9), " - M4"))) %>% 
+  select(`Variable - Model`, everything()) %>% 
+  pivot_wider(names_from = measure, values_from = value) -> m4_mkt
+
+readr::read_rds("Data/daily_data_pca.rds") %>%
+  filter(date >= inidate) %>% 
+  select(mkt_rvol) %>% 
+  summarise(across(everything(), stats)) %>% 
+  pivot_longer(cols = everything()) %>% 
+  separate(name, c("mkt", "variable", "measure"), sep = "_") %>%
+  select(-c(mkt, variable)) %>% 
+  mutate(`Variable - Model` = paste0(rep("Volatility", 9), " - M2")) %>% 
+  select(`Variable - Model`, everything()) %>% 
+  pivot_wider(names_from = measure, values_from = value) -> m3_mkt
+
+readr::read_rds("Data/daily_data_garch.rds") %>%
+  filter(date >= inidate) %>% 
+  select(mkt_ret, mkt_rvol) %>% 
+  summarise(across(everything(), stats)) %>% 
+  pivot_longer(cols = everything()) %>% 
+  separate(name, c("mkt", "variable", "measure"), sep = "_") %>%
+  select(-c(mkt, variable)) %>% 
+  mutate(`Variable - Model` = c(paste0(rep("Returns", 9), " - M1 and M3"), paste0(rep("Volatility", 9), " - M3"))) %>% 
+  select(`Variable - Model`, everything()) %>% 
+  pivot_wider(names_from = measure, values_from = value) -> m2_mkt
+
+readr::read_rds("Data/daily_data.rds") %>% 
+  filter(date >= inidate) %>% 
+  select(mkt_ret) %>% 
+  summarise(across(everything(), stats)) %>% 
+  pivot_longer(cols = everything()) %>% 
+  separate(name, c("mkt", "variable", "measure"), sep = "_") %>%
+  select(-c(mkt, variable)) %>% 
+  mutate(`Variable - Model` = paste0(rep("Volatility", 9), " - M1")) %>% 
+  select(`Variable - Model`, everything()) %>% 
+  pivot_wider(names_from = measure, values_from = value) %>% 
+  rbind(m2_mkt, m3_mkt, m4_mkt) %>% 
+  arrange(`Variable - Model`) %>% 
+  readr::write_rds("Print/mktest_summ.rds")
+
+rm(list = ls())
