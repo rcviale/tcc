@@ -370,11 +370,17 @@ readr::read_rds(paste0(path, "fmbt_res.rds")) %>%
 
 Lastly, for the coefficient of interest in this work, $\lambda_2$, which measures the impact of the market volatility over assets' returns, Models 1 and 4 were able to achieve estimates that can be considered statistically significant, as its p-values were approximately 0.04721 and 0.01359, lower than the threshold of the significance level $\alpha = 0.05$, rejecting the null hypothesis of coefficients equal to zero. It is noticeable the difference in the coefficients' value, 0.00001 and 0.00015 for Models 1 and 4, respectively, highlighting the impact that the choice between using a realized measure or a GARCH specification can have on the estimated value for $\lambda_2$. A unit increase (decrease) in the volatility betas, according the these models, therefore, should reflect, respectively, on 0.00001 and 0.00015 higher (lower) daily asset returns, or, 0.001 p.p. and 0.015 p.p., which are equivalent to 0.25 p.p. and 5.51 p.p. in annualized terms, amounting to a relevant difference. There is indication that these volatility betas' estimates, consequently, are priced in cryptocurrencies' returns. 
 
-The discrepancy in $\lambda_2$ coefficients and subsequent estimated effects caused by the volatility betas can be attributed to the divergence in the $\beta_{2,i}$ estimates from the methods used, emphasizing an important gap between the usage of market capitalization and PCA methods, which can be seen in Table \@ref(tab:betas2). The betas from Model 1 are negative in 8 out of the 10 cases, while in Model 4 only one beta is below zero but still close to this value, the ($\beta_{2, 10}$), from the cryptocurrency MATIC, which is curiously one of the few positive estimates from the former model. This is a worrying result, as negative beta coefficients go against intuition and a market efficiency argument in the sense that increased volatility in this case would decrease assets' returns, constituting an important deterrent for a rational agent to invest in such assets.
+The discrepancy in $\lambda_2$ coefficients and subsequent estimated effects caused by the volatility betas can be attributed to the divergence in the $\beta_{2,i}$ estimates from the methods used, emphasizing an important gap between the usage of market capitalization and PCA methods, which can be seen in Table \@ref(tab:betas2). The betas from Model 1 are negative in 8 out of the 10 cases, while in Model 4 only one beta is below zero but still relatively close to this value, the ($\beta_{2, 10}$), from the cryptocurrency MATIC, which is curiously one of the few positive estimates from the former model. This is a worrying result, as negative beta coefficients contradict intuition and the market efficiency argument in the sense that increased volatility in this case would decrease assets' returns, constituting an important deterrent for a rational agent to invest in such assets, as risk would not be rewarded.
+
 
 ```{r betas2}
-readr::read_rds("Print/betas2_comp.rds") %>% 
-  knitr::kable(caption = "Comparison Between $\\beta_{2, i}$ Coefficient Derived from $RVOL_{i}^{(MC)}$ and $\\sigma_i^{(PCA)}$ Estimates", digits = 1)
+readr::read_rds(paste0(path, "betas2_comp.rds")) %>% 
+  knitr::kable(caption = "Comparison Between $\\beta_{2, i}$ Coefficient Derived from $RVOL_{i}^{(MC)}$ and $\\sigma_i^{(PCA)}$ Estimates", digits = 3)
+```
+
+```{r}
+readr::read_rds(paste0(path, "mktest_summ.rds")) %>% 
+  knitr::kable(caption = "Market Estimates Summary Statistics", digits = 5)
 ```
 
 Before drawing further conclusions, the residuals of the computed linear models are tested.

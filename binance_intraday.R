@@ -444,7 +444,7 @@ mkt_ret <- readr::read_rds("Data/mkt_ret.rds")
 dpca <- readr::read_rds("Data/dpca.rds")
 
 # GARCH fit for Market estimates
-gspec <- rugarch::ugarchspec(distribution.model = "sstd", mean.model = list(armaOrder = c(0, 0)),
+gspec <- rugarch::ugarchspec(distribution.model = "std", mean.model = list(armaOrder = c(0, 0)),
                              variance.model = list(model = "sGARCH", garchOrder = c(1, 1)))
 cap_garch <- rugarch::ugarchfit(gspec, mkt_ret$mkt_ret)@fit$sigma
 # pca_garch <- rugarch::ugarchfit(gspec, pca_mkt$mkt_ret, solver = "hybrid")@fit$sigma
@@ -517,6 +517,7 @@ regs <- daily_data %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b1_m1 <- b1
 b2_m1 <- b2
 
 # Compute second step regressions
@@ -533,6 +534,7 @@ regs <- daily_data_pca %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b1_m2 <- b1
 b2_m2 <- b2
 
 # Compute second step regressions
@@ -549,6 +551,7 @@ regs <- daily_data_garch %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b1_m3 <- b1
 b2_m3 <- b2
 
 # Compute second step regressions
@@ -565,6 +568,7 @@ regs <- daily_data_pca_garch %>% fmb1()
 
 b1 <- regs %>% filter(term == "mkt_ret") %>% select(estimate) %>% unlist()
 b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
+b1_m4 <- b1
 b2_m4 <- b2
 
 # Compute second step regressions
@@ -590,6 +594,14 @@ tibble("Asset" = readxl::read_excel("new_initial_dates.xlsx")[, 2] %>% unlist(),
        "Model 3" = b2_m3,
        "Model 4" = b2_m4) %>% 
   readr::write_rds("Print/betas2_comp.rds")
+
+tibble("Asset" = readxl::read_excel("new_initial_dates.xlsx")[, 2] %>% unlist(),
+       "Model 1" = b1_m1,
+       "Model 2" = b1_m2,
+       "Model 3" = b1_m3,
+       "Model 4" = b1_m4) %>% 
+  readr::write_rds("Print/betas1_comp.rds")
+
 
 # pivot_longer(cols = c(x_mean, t_stat, p_val)) %>% 
 #   mutate(id = paste0(coef, "_", model)) %>% 
