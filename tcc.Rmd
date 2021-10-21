@@ -359,8 +359,6 @@ This Section presents the results from the estimated model specifications, focus
 
 As a result from the estimated Fama-MacBeth regression, t-tests are performed on the $\lambda_0$, $\lambda_1$ and $\lambda_2$ estimates, with the results being presented in Table \@ref(tab:tt). From this table, it can be seen that as for the intercept ($\lambda_0$), there is no evidence supporting its significance for any of the estimated models, since the test did not reject the null hypothesis $H_0:\ \lambda_0 = 0$ at the conventional significance level $\alpha = 0.05$. 
 
-For the second coefficient, $\lambda_1$, which estimate the influence of the CAPM betas over assets' returns, the first three model specifications were not able to reject the null hypothesis of the t-test, leading to an assumption of its' insignificance. For Model 4, the one combining the first principal component as an approximation for the market returns and a GARCH(1, 1) with *t*-distributed innovations estimate for the market volatility, however, the p-value of 0.01247 indicates $H_0$ should be rejected at $\alpha = 0.05$ and the coefficient's significance should be assumed. The coefficient's value can be interpreted as the effect that an increase in the asset's CAPM beta has on its returns. A unit increase in the CAPM beta, therefore, will reflect on a 0.00015, that is, 0.015 p.p., higher daily return for the asset in question, roughly equivalent to 5.66 p.p. in annualized terms^[Annualized by 365 days a year], meaning assets with higher coefficient should deliver higher returns when the market rises, while performing worse in downward movement periods. Hence, it can be said that the market returns derived from the first principal component were able to provide CAPM betas that are priced in the assets' individual returns.
-
 ```{r tt}
 readr::read_rds(paste0(path, "fmbt_res.rds")) %>% 
   rename(Coefficient = coef, Model = model, Mean = x_mean, `Std. Error` = sd_er,
@@ -368,19 +366,27 @@ readr::read_rds(paste0(path, "fmbt_res.rds")) %>%
   knitr::kable(caption = "t-tests' Results", digits = 5)
 ```
 
-Lastly, for the coefficient of interest in this work, $\lambda_2$, which measures the impact of the market volatility over assets' returns, Models 1 and 4 were able to achieve estimates that can be considered statistically significant, as its p-values were approximately 0.04721 and 0.01359, lower than the threshold of the significance level $\alpha = 0.05$, rejecting the null hypothesis of coefficients equal to zero. It is noticeable the difference in the coefficients' value, 0.00001 and 0.00015 for Models 1 and 4, respectively, highlighting the impact that the choice between using a realized measure or a GARCH specification can have on the estimated value for $\lambda_2$. A unit increase (decrease) in the volatility betas, according the these models, therefore, should reflect, respectively, on 0.00001 and 0.00015 higher (lower) daily asset returns, or, 0.001 p.p. and 0.015 p.p., which are equivalent to 0.25 p.p. and 5.51 p.p. in annualized terms, amounting to a relevant difference. There is indication that these volatility betas' estimates, consequently, are priced in cryptocurrencies' returns. 
+For the second coefficient, $\lambda_1$, which estimates the influence of the CAPM betas over assets' returns, the four model specifications were also not able to reject the null hypothesis of the t-test, leading to an assumption of insignificance in determining returns. The respective betas for each Model are presented in Table \@ref(tab:betas1), where the difference between the estimates can be seen, being attributed mostly to the distinct scaling and computation of market returns, by market capitalization or PCA, causing the specifications derived from the latter to appear significantly smaller than the ones from the former. This discrepancy in the scale of market returns' estimates is visible when computing summary statistics for both methods, which are presented in Table \@ref(tab:mktests). Market returns estimated trough PCA (Models 2 and 4, abbreviated as "M1" and "M4" in the referred table) show a much higher standard deviation than the ones from market capitalization weighting. In this context, no asset has a CAPM beta exposure higher than 1 ($beta_{1,i}$) in regards to the cryptocurrency market return, a scenario in which this specific asset should show returns with higher standard deviation than that of the market.
 
-The discrepancy in $\lambda_2$ coefficients and subsequent estimated effects caused by the volatility betas can be attributed to the divergence in the $\beta_{2,i}$ estimates from the methods used, emphasizing an important gap between the usage of market capitalization and PCA methods, which can be seen in Table \@ref(tab:betas2). The betas from Model 1 are negative in 8 out of the 10 cases, while in Model 4 only one beta is below zero but still relatively close to this value, the ($\beta_{2, 10}$), from the cryptocurrency MATIC, which is curiously one of the few positive estimates from the former model. This is a worrying result, as negative beta coefficients contradict intuition and the market efficiency argument in the sense that increased volatility in this case would decrease assets' returns, constituting an important deterrent for a rational agent to invest in such assets, as risk would not be rewarded.
+```{r betas1}
+readr::read_rds(paste0(path, "betas1_comp.rds")) %>% 
+  knitr::kable(caption = "$\\beta_{1, i}$ Coefficients' Comparison", 
+               digits = 3)
+```
+
+Lastly, for the coefficient of interest in this work, $\lambda_2$, which measures the impact of the market volatility over assets' returns, only Model 1 was able to achieve estimates that can be considered statistically significant, as its p-value was approximately 0.04721, lower than the threshold of the significance level $\alpha = 0.05$, rejecting the null hypothesis of coefficients equal to zero. There is indication that these volatility betas' estimates, consequently, are priced in cryptocurrencies' returns. A unit increase (decrease) in the volatility beta, according the this model, therefore, should reflect, respectively, on a 0.00001 higher (lower) daily asset return, or, 0.001 p.p., which is equivalent to approximately 0.25 p.p. in annualized terms (using 365 days, as cryptocurrencies trade all days of the year), amounting to a small difference when put in perspective with the volatility from the assets in this class.
+
+```{r mktests}
+readr::read_rds(paste0(path, "mktest_summ.rds")) %>% 
+  knitr::kable(caption = "Market Estimates Summary Statistics", digits = 5)
+```
+
+Analyzing the estimated $\beta_{2,i}$ coefficients, even for the models that yielded unsatisfactory results, presented in Table \@ref(tab:betas2), there is a considerable divergence in the estimates. Summary statistics for the different volatility measures used can be found in Table \@ref(tab:mktests), with the divergence in scaling and method again affecting the estimates for the betas. More important than this discrepancy is the presence of negative $\beta_{2,i}$ estimates in all models, and especially in Model 1, the only one in which $\lambda_2$ was significant, where 8 out 10 betas have a negative sign. PAREI AQUI The betas from Model 1 are negative in 8 out of the 10 cases, while in Model 4 only one beta is below zero but still relatively close to this value, the ($\beta_{2, 10}$), from the cryptocurrency MATIC, which is curiously one of the few positive estimates from the former model. This is a worrying result, as negative beta coefficients contradict intuition and the market efficiency argument in the sense that increased volatility in this case would decrease assets' returns, constituting an important deterrent for a rational agent to invest in such assets, as risk would not be rewarded.
 
 
 ```{r betas2}
 readr::read_rds(paste0(path, "betas2_comp.rds")) %>% 
-  knitr::kable(caption = "Comparison Between $\\beta_{2, i}$ Coefficient Derived from $RVOL_{i}^{(MC)}$ and $\\sigma_i^{(PCA)}$ Estimates", digits = 3)
-```
-
-```{r}
-readr::read_rds(paste0(path, "mktest_summ.rds")) %>% 
-  knitr::kable(caption = "Market Estimates Summary Statistics", digits = 5)
+  knitr::kable(caption = "$\\beta_{2, i}$ Coefficients Comparison", digits = 3)
 ```
 
 Before drawing further conclusions, the residuals of the computed linear models are tested.
