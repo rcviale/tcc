@@ -1,5 +1,5 @@
 ---
-title: "TCC"
+title: "VOLATILITY OF THE CRYPTOCURRENCY MARKET AS A DRIVER OF RETURNS THROUGH A HIGH-FREQUENCY DATA APPROACH"
 author: "Rodrigo Viale"
 date: "28/09/2021"
 bibliography: refs.bib  
@@ -381,19 +381,42 @@ readr::read_rds(paste0(path, "mktest_summ.rds")) %>%
   knitr::kable(caption = "Market Estimates Summary Statistics", digits = 5)
 ```
 
-Analyzing the estimated $\beta_{2,i}$ coefficients, even for the models that yielded unsatisfactory results, presented in Table \@ref(tab:betas2), there is a considerable divergence in the estimates. Summary statistics for the different volatility measures used can be found in Table \@ref(tab:mktests), with the divergence in scaling and method again affecting the estimates for the betas. More important than this discrepancy is the presence of negative $\beta_{2,i}$ estimates in all models, and especially in Model 1, the only one in which $\lambda_2$ was significant, where 8 out 10 betas have a negative sign. PAREI AQUI The betas from Model 1 are negative in 8 out of the 10 cases, while in Model 4 only one beta is below zero but still relatively close to this value, the ($\beta_{2, 10}$), from the cryptocurrency MATIC, which is curiously one of the few positive estimates from the former model. This is a worrying result, as negative beta coefficients contradict intuition and the market efficiency argument in the sense that increased volatility in this case would decrease assets' returns, constituting an important deterrent for a rational agent to invest in such assets, as risk would not be rewarded.
-
+Analyzing the estimated $\beta_{2,i}$ coefficients, even for the models that yielded unsatisfactory results, presented in Table \@ref(tab:betas2), there is a considerable divergence in the estimates. Summary statistics for the different volatility measures used can be found in Table \@ref(tab:mktests), with the divergence in scaling and method again affecting the estimates for the betas. More important than this discrepancy is the presence of negative $\beta_{2,i}$ estimates in all models, and especially in Model 1, the only one in which $\lambda_2$ was significant, where 8 out 10 betas have a negative sign. This is a worrying result, as negative beta coefficients contradict intuition and the market efficiency argument in the sense that increased volatility in this case would decrease assets' returns, constituting an important deterrent for a rational agent to invest in such assets, as risk would not be rewarded.
 
 ```{r betas2}
 readr::read_rds(paste0(path, "betas2_comp.rds")) %>% 
   knitr::kable(caption = "$\\beta_{2, i}$ Coefficients Comparison", digits = 3)
 ```
 
-Before drawing further conclusions, the residuals of the computed linear models are tested.
+In the next subsection the residuals of the computed linear models are tested.
 
 ## RESIDUALS {#resid}
 
+The usage of a linear regression demands the residuals to be analyzed, in order to verify possible problems that violate its assumptions, compromising the inference. The residuals in each regression of each model, therefore, are subjected to three statistical tests: first, the Ljung-Box test (@LB), to evaluate the presence of joint autocorrelation in the residuals, with a lag of 7, as it would cover a whole week of negotiations period and where $H_0:\ independently\ distributed\ data$. Second, the Breusch-Pagan test (@BP), where the null hypothesis, $H_0$, is characterized by homoskedasticity, that is, constant variance. Finally, a Jarque-Bera test (@JB), to analyze the normality of the residuals' distribution, where $H_0$ represents normally distributed data. Since in the Fama-MacBeth approach in this work there are 10 first-step linear regressions and 731 in the second-step, for each of the four models, the tests' results are presented in the form of rejection rates at the 5% significance level and separated by first and second step regressions. In other words, the amount of same-step regressions where the null hypothesis for that test was rejected in that model specification is divided by the amount of same-step regressions (or amount of tests) in that same model, as in equation \@ref(eq:rrs). The rejection rates for the first step regressions can be found in Table \@ref(tab:res1), and for the second step, in Table \@ref(tab:res2).
 
+\begin{equation}
+(\#eq:rrs)
+RR_{a,b} = \frac{Amount\ of\ rejected\ tests\ a}{Number\ of\ Tests\ Performed},
+\end{equation}
+where $RR_{a,b}$ is the rejection rate of test $b$ (Ljung-Box, Breusch-Pagan or Jarque-Bera) for model $a$ 
+
+```{r res1}
+readr::read_rds(paste0(path, "res1.rds")) %>% 
+  knitr::kable(digits = 3, caption = "Rejection Rates for Tests on the Residuals of the First Step Regressions")
+```
+
+Clearly the first step regressions (which estimate CAPM betas and betas for the volatility measures) draw concerns, as the Breusch-Pagan test indicates towards heteroskedasticity in the residuals of at least half of the regressions in all models. Autocorrelation should be assumed in twenty percent or more of the regressions' residuals depending on the model specification in question, according to the Ljung-Box tests. Lastly, for all the computed regressions in all estimated models the Jarque-Bera test is rejected, pointing towards residuals that are not normally distributed in all possible cases.
+
+For the second step regressions, the rejection rates are presented in Table \@ref(tab:res2).
+
+```{r res2}
+readr::read_rds(paste0(path, "res2.rds")) %>% 
+  knitr::kable(digits = 3, caption = "Rejection Rates for Tests on the Residuals of the Second Step Regressions")
+```
+
+The problems in the residuals are relevantly less in this step, with indication of presence of autocorrelation in the residuals in no more than 5.2% of the estimations, with Model 3 presenting only 3% of rejection in this criteria. Heteroskedasticity does not seem to be of concern in the vast majority of the regressions' residuals, with the worst case being Model 1, with a 9.6% rejection rate and in the best case, the one from Model 4, a rate of merely 0.04%. Lastly the rejection of normally distributed data occurs only in 3% of the regressions in Model 1, while for the worst performing model in this criteria, Model 2, this rate is approximately 13.4%.
+
+There is evidence of significant problems in the residuals of the regressions in the first step, but for the second step, which is more important in the Fama-MacBeth approach, as it is when the estimated betas are tested for their effect on returns, these problems seem to be smaller damaging the inference in a smaller scale, although still relevant.
 
 # CONCLUSION {#conc}
 
