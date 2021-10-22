@@ -10,6 +10,9 @@ fmb1 <- function(data){
     dplyr::mutate(t0        = map_dbl(.x = data, .f = ~which(is.na(.x$rets) == FALSE)[1]),
                   reg       = map2(.x = data, .y = t0, .f = ~ lm(formula = rets ~ mkt_ret + mkt_rvol, 
                                                                  data = .x[.y : nrow(.x), ])),
+                  lbox      = map_dbl(.x = reg, .f = ~Box.test(residuals(.x), lag = 7, type = "Ljung-Box")$p.value),
+                  bp        = map_dbl(.x = reg, .f = ~lmtest::bptest(.x)$p.value),
+                  jb        = map_dbl(.x = reg, .f = ~tseries::jarque.bera.test(residuals(.x))$p.value),
                   reg_tidy  = map(.x = reg, .f = broom::tidy)) %>% #,
     #              lbox      = map_dbl(.x = reg, .f = ~Box.test(residuals(.x), lag = 7, type = "Ljung-Box")$p.value)) %>% 
     tidyr::unnest(reg_tidy) %>% 
