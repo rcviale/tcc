@@ -320,7 +320,7 @@ covs_pca <- all_data %>%
   select(-datetime) %>%
   select(date, everything()) %>% 
   nest(data = -date) %>% # Nest according to day
-  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obsx")),
+  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
          layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
          pca     = map2(.x = data, .y = layout, .f = ~princomp(na.omit(.x[, 1 : .y]))),
          mkt_ret = map_dbl(.x = pca, .f = ~ mean(.x$scores[1:288])), # First day of full sample is wrong (should be 287)
@@ -347,6 +347,26 @@ covs_pca %>%
   select(-c(covs, pca)) %>% 
   readr::write_rds(file = "Data/pca_mkt.rds")
 
+# Select the PCA weights and save RDS
+all_data %>%
+  lrets() %>% # Take log rets
+  slice_tail(n = nrow(.) - 1) %>% # Take out first row
+  mutate(date = lubridate::as_date(datetime)) %>% # Only day column
+  select(-datetime) %>%
+  select(date, everything()) %>% 
+  nest(data = -date) %>% # Nest according to day
+  mutate(covs    = map(.x = data, .f = ~ cov(.x, use = "pairwise.complete.obs")),
+         layout  = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x)))),
+         pca     = map2(.x = data, .y = layout, .f = ~princomp(na.omit(.x[, 1 : .y]))),
+         weights = map2(.x = pca, .y = layout, 
+                        .f = ~ tibble(asset = colnames(all_data)[2 : (.y + 1)],
+                                      weight = .x$loadings[1 : .y]^2))) %>%
+  select(-data) %>% 
+  unnest(weights) %>% 
+  pivot_wider(names_from = asset, values_from = weight) %>% 
+  select(-c(covs, layout, pca)) %>% 
+  readr::write_rds(file = "Data/pca_wts.rds")
+
 
 
 # Select PCA market Rvol
@@ -363,21 +383,34 @@ dpca <- rets %>%
   select(-date) %>% 
   princomp()
 
+summary(dpca)
+
 tibble(date = rets$date,
        mkt_ret = c(rep(NA, 699), as.matrix(dpca$scores)[, 1]),
        mkt_rvol = pca_rvol$mkt_rvol) %>% 
   readr::write_rds("Data/dpca.rds")
 
+# Difference in scalings
+w1 <- dpca$loadings[1:10]^2
+w2 <- rets %>%
+  na.omit() %>% 
+  select(-date) %>% 
+  prcomp(scale. = TRUE)
+w2 <- w2$rotation[1:10]^2
 
-
+cbind(w1, w2) %>% 
+  as_tibble %>% 
+  mutate(dd = w1 - w2) %>% 
+  select(dd) %>% 
+  t.test
 
 
 # Summary statistics for PC1
-covs_pca %>% 
-  select(pca) %>% 
-  slice_tail(n = 731) %>% 
-  mutate(pc1 = map_dbl(.x = pca, .f = ~factoextra::get_eig(.x)$variance.percent[1])) %>% 
-  summarise(across(pc1, stats))
+# covs_pca %>% 
+#   select(pca) %>% 
+#   slice_tail(n = 731) %>% 
+#   mutate(pc1 = map_dbl(.x = pca, .f = ~factoextra::get_eig(.x)$variance.percent[1])) %>% 
+#   summarise(across(pc1, stats))
 
 # Full period covariance matrix
 full_cor <- all_data %>%
@@ -398,11 +431,14 @@ rets <- readr::read_rds("Data/rets.rds")
 rvols <- readr::read_rds("Data/rvols.rds")
 weights <- readxl::read_excel(paste0('Data/weights.xlsx'))
 covs <- readr::read_rds("Data/covs.rds")
+pca_wts <- readr::read_rds("Data/pca_wts.rds")
 
 # Pivot all longer
 rets_long <- rets %>% 
   pivot_longer(-date, values_to = "ret")
 weights_long <- weights %>% 
+  pivot_longer(-date, values_to = "weights")
+pcawts_long <- pca_wts %>% 
   pivot_longer(-date, values_to = "weights")
 
 rm(rets)
@@ -432,6 +468,23 @@ mkt_ret <- mkt_est(rets_long, weights_long, ret) %>%
 # Save Market Cap based Returns RDS
 readr::write_rds(mkt_ret, "Data/mkt_ret.rds")
 
+# PCA RVol
+covs %>%
+  left_join(pca_wts, by = "date") %>% 
+  slice_tail(n = 731) %>% 
+  nest(weights= -c(date, covs))  %>% 
+  mutate(mkt_rvol = map2_dbl(.x = covs, .y = weights, .f = ~unlist(.y) %*% .x %*% unlist(.y)))
+  mutate(layout = map_dbl(.x = covs, .f = ~ sqrt(nrow(.x)^2 - sum(is.na(.x))))) %>%
+  nest(weights = -c(date, covs, layout)) %>% 
+  mutate(act_covs = map2(.x = covs, .y = layout, .f = ~ .x[1:.y, 1:.y]),
+         act_wts  = map2(.x = weights, .y = layout, .f = ~ .x[1:.y]),
+         mkt_rvol = map2_dbl(.x = act_covs, .y = act_wts,
+                             .f = ~ as.matrix(.y) %*% .x %*% t(.y))) %>% 
+  select(-c(layout, covs, weights, act_covs, act_wts)) %>% 
+  readr::write_rds("Data/pca_rvol.rds")
+
+
+
 rm(list = ls())
 
 
@@ -442,6 +495,7 @@ mkt_rvol <- readr::read_rds("Data/mkt_rvol.rds")
 mkt_ret <- readr::read_rds("Data/mkt_ret.rds")
 # pca_mkt <- readr::read_rds("Data/pca_mkt.rds")
 dpca <- readr::read_rds("Data/dpca.rds")
+pca_rvol <- readr::read_rds("Data/pca_rvol.rds")
 
 # GARCH fit for Market estimates
 gspec <- rugarch::ugarchspec(distribution.model = "std", mean.model = list(armaOrder = c(0, 0)),
@@ -471,7 +525,10 @@ rm(mkt_rvol, cap_garch, mkt_ret, daily_data, daily_data_garch)
 
 # Left join individual returns, PCA based Market Returns and Realized volatility
 # daily_data_pca <- left_join(rets, pca_mkt, by = "date") %>% select(-mkt_rv)
-daily_data_pca <- left_join(rets, dpca, by = "date")
+daily_data_pca <- dpca %>% 
+  select(-mkt_rvol) %>% 
+  left_join(pca_rvol, by = "date") %>% 
+  left_join(rets, by = "date")
 
 # Left join individual returns, PCA based Market Returns and GARCH volatility
 # daily_data_pca_garch <- left_join(rets, pca_mkt, by = "date") %>%
@@ -491,6 +548,7 @@ rm(list = ls())
 
 #### Fama-MacBeth Regressions (FINALLY!) ####
 # Load Market Cap and PCA based daily data tibbles
+library(tidyverse)
 inidate <- as.Date("2019-08-01")
 daily_data <- readr::read_rds("Data/daily_data.rds") %>% filter(date >= inidate)
 daily_data_garch <- readr::read_rds("Data/daily_data_garch.rds") %>% filter(date >= inidate)
@@ -520,16 +578,16 @@ b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
 b1_m1 <- b1
 b2_m1 <- b2
 estat1 <- tibble(Model = "Model 1",
-                 `Ljung-Box` = regs %>% filter(lbox < 0.05) %>% nrow(.)/30,
-                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30,
-                 `Jarque-Bera` = regs %>% filter(jb < 0.05) %>% nrow(.) / 30)
+                 `Ljung-Box 7` = regs %>% filter(lbox7 < 0.05) %>% nrow(.)/30,
+                 `Ljung-Box 28` = regs %>% filter(lbox28 < 0.05) %>% nrow(.)/30,
+                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30)
 
 # Compute second step regressions
 regs2 <- daily_data %>% fmb2(beta1 = b1, beta2 = b2)
 ustat1 <- tibble(Model = "Model 1",
-                 `Ljung-Box` = regs2 %>% filter(lbox < 0.05) %>% nrow(.)/2193,
-                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193,
-                 `Jarque-Bera` = regs2 %>% filter(jb < 0.05) %>% nrow(.) / 2193)
+                 `Ljung-Box 7` = regs2 %>% filter(lbox7 < 0.05) %>% nrow(.)/2193,
+                 `Ljung-Box 28` = regs2 %>% filter(lbox28 < 0.05) %>% nrow(.)/2193,
+                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193)
 
 # t test for the coefficient of interest
 cap_t <- regs2 %>% fmb_t("beta1", "beta2")
@@ -545,16 +603,16 @@ b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
 b1_m2 <- b1
 b2_m2 <- b2
 estat2 <- tibble(Model = "Model 2",
-                 `Ljung-Box` = regs %>% filter(lbox < 0.05) %>% nrow(.)/30,
-                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30,
-                 `Jarque-Bera` = regs %>% filter(jb < 0.05) %>% nrow(.) / 30)
+                 `Ljung-Box 7` = regs %>% filter(lbox7 < 0.05) %>% nrow(.)/30,
+                 `Ljung-Box 28` = regs %>% filter(lbox28 < 0.05) %>% nrow(.)/30,
+                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30)
 
 # Compute second step regressions
 regs2 <- daily_data %>% fmb2(beta1 = b1, beta2 = b2)
 ustat2 <- tibble(Model = "Model 2",
-                 `Ljung-Box` = regs2 %>% filter(lbox < 0.05) %>% nrow(.)/2193,
-                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193,
-                 `Jarque-Bera` = regs2 %>% filter(jb < 0.05) %>% nrow(.) / 2193)
+                 `Ljung-Box 7` = regs2 %>% filter(lbox7 < 0.05) %>% nrow(.)/2193,
+                 `Ljung-Box 28` = regs2 %>% filter(lbox28 < 0.05) %>% nrow(.)/2193,
+                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193)
 
 # t test for the coefficient of interest
 pca_t <- regs2 %>% fmb_t("beta1", "beta2")
@@ -570,16 +628,16 @@ b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
 b1_m3 <- b1
 b2_m3 <- b2
 estat3 <- tibble(Model = "Model 3",
-                 `Ljung-Box` = regs %>% filter(lbox < 0.05) %>% nrow(.)/30,
-                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30,
-                 `Jarque-Bera` = regs %>% filter(jb < 0.05) %>% nrow(.) / 30)
+                 `Ljung-Box 7` = regs %>% filter(lbox7 < 0.05) %>% nrow(.)/30,
+                 `Ljung-Box 28` = regs %>% filter(lbox28 < 0.05) %>% nrow(.)/30,
+                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30)
 
 # Compute second step regressions
 regs2 <- daily_data %>% fmb2(beta1 = b1, beta2 = b2)
 ustat3 <- tibble(Model = "Model 3",
-                 `Ljung-Box` = regs2 %>% filter(lbox < 0.05) %>% nrow(.)/2193,
-                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193,
-                 `Jarque-Bera` = regs2 %>% filter(jb < 0.05) %>% nrow(.) / 2193)
+                 `Ljung-Box 7` = regs2 %>% filter(lbox7 < 0.05) %>% nrow(.)/2193,
+                 `Ljung-Box 28` = regs2 %>% filter(lbox28 < 0.05) %>% nrow(.)/2193,
+                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193)
 
 # t test for the coefficient of interest
 cap_garch_t <- regs2 %>% fmb_t("beta1", "beta2")
@@ -595,16 +653,16 @@ b2 <- regs %>% filter(term == "mkt_rvol") %>% select(estimate) %>% unlist()
 b1_m4 <- b1
 b2_m4 <- b2
 estat4 <- tibble(Model = "Model 4",
-                 `Ljung-Box` = regs %>% filter(lbox < 0.05) %>% nrow(.)/30,
-                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30,
-                 `Jarque-Bera` = regs %>% filter(jb < 0.05) %>% nrow(.) / 30)
+                 `Ljung-Box 7` = regs %>% filter(lbox7 < 0.05) %>% nrow(.)/30,
+                 `Ljung-Box 28` = regs %>% filter(lbox28 < 0.05) %>% nrow(.)/30,
+                 `Breusch-Pagan` = regs %>% filter(bp < 0.05) %>% nrow(.)/30)
 
 # Compute second step regressions
 regs2 <- daily_data %>% fmb2(beta1 = b1, beta2 = b2)
 ustat4 <- tibble(Model = "Model 4",
-                 `Ljung-Box` = regs2 %>% filter(lbox < 0.05) %>% nrow(.)/2193,
-                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193,
-                 `Jarque-Bera` = regs2 %>% filter(jb < 0.05) %>% nrow(.) / 2193)
+                 `Ljung-Box 7` = regs2 %>% filter(lbox7 < 0.05) %>% nrow(.)/2193,
+                 `Ljung-Box 28` = regs2 %>% filter(lbox28 < 0.05) %>% nrow(.)/2193,
+                 `Breusch-Pagan` = regs2 %>% filter(bp < 0.05) %>% nrow(.)/2193)
 
 # t test for the coefficient of interest
 pca_garch_t <- regs2 %>% fmb_t("beta1", "beta2")
@@ -700,7 +758,7 @@ readr::read_rds("Data/daily_data_garch.rds") %>%
 
 readr::read_rds("Data/daily_data.rds") %>% 
   filter(date >= inidate) %>% 
-  select(mkt_ret) %>% 
+  select(mkt_rvol) %>% 
   summarise(across(everything(), stats)) %>% 
   pivot_longer(cols = everything()) %>% 
   separate(name, c("mkt", "variable", "measure"), sep = "_") %>%
@@ -710,8 +768,19 @@ readr::read_rds("Data/daily_data.rds") %>%
   pivot_wider(names_from = measure, values_from = value) %>% 
   rbind(m2_mkt, m3_mkt, m4_mkt) %>% 
   arrange(`Variable - Model`) %>% 
+  rename(N = obs, Min. = min, Median = med, Mean = mean, Max. = max, Var. = var, 
+         `Std. Dev.` = sd, `25%` = q1, `75%` = q3) %>% 
   readr::write_rds("Print/mktest_summ.rds")
 
+readr::read_rds("Data/pca_wts.rds") %>% 
+  select(-date) %>% 
+  summarise(across(everything(), stats)) %>% 
+  pivot_longer(everything(), names_to = c("Acronym", "Statistic"), 
+               names_sep = "_", values_to = "Value") %>% 
+  pivot_wider(names_from = Statistic, values_from = Value) %>% 
+  rename(N = obs, Min. = min, Median = med, Mean = mean, Max. = max, Var. = var, 
+         `Std. Dev.` = sd, `25%` = q1, `75%` = q3) %>% 
+  readr::write_rds("Print/pcawts_summ.rds")
 
 estat1 %>% 
   rbind(estat2, estat3, estat4) %>% 
